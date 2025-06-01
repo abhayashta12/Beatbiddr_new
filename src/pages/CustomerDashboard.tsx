@@ -1,10 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from '../components/layout/Navbar';
 import WalletCard from '../components/customer/WalletCard';
 import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song } from '../types';
+import axios from 'axios';
+
+// ✅ Utility function to generate Spotify Auth URL
+const getSpotifyAuthUrl = (): string => {
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+  const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
+
+  const scopes = [
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'user-library-read',
+    'user-read-private',
+  ];
+
+  return `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&scope=${scopes.join('%20')}`;
+};
+
+// ✅ Your existing mock data stays fully intact
 
 const mockDJs: DJ[] = [
   {
@@ -52,7 +72,7 @@ const mockRequests: SongRequest[] = [
     id: '2',
     song: {
       id: '102',
-      title: 'Don\'t Start Now',
+      title: "Don't Start Now",
       artist: 'Dua Lipa',
       album: 'Future Nostalgia',
       albumCover: 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
@@ -63,7 +83,7 @@ const mockRequests: SongRequest[] = [
       avatar: 'https://example.com/avatar1.jpg',
     },
     tipAmount: 10,
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(), // 10 minutes ago
+    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
     status: 'accepted',
   },
 ];
@@ -73,13 +93,13 @@ const mockTransactions: Transaction[] = [
     id: 't1',
     type: 'deposit',
     amount: 50,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
   },
   {
     id: 't2',
     type: 'tip',
     amount: 15,
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
     recipient: 'DJ Spinz',
     song: {
       id: '101',
@@ -92,9 +112,22 @@ const mockTransactions: Transaction[] = [
 ];
 
 const CustomerDashboard: React.FC = () => {
-  const [walletBalance, setWalletBalance] = React.useState(35);
-  const [requests, setRequests] = React.useState<SongRequest[]>(mockRequests);
-  const [transactions, setTransactions] = React.useState<Transaction[]>(mockTransactions);
+  const [walletBalance, setWalletBalance] = useState(35);
+  const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
+  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+
+  // ✅ Extract token from URL after Spotify login redirect
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const token = new URLSearchParams(hash.substring(1)).get('access_token');
+      if (token) {
+        setSpotifyToken(token);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
 
   const handleRequestSubmit = (song: Song, tipAmount: number, message: string) => {
     const newRequest: SongRequest = {
@@ -127,27 +160,35 @@ const CustomerDashboard: React.FC = () => {
   return (
     <div className="bg-dark-600 min-h-screen">
       <Navbar />
-      
+
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        {/* ✅ This adds Spotify Connect button */}
+        <div className="flex justify-end mb-4">
+          {!spotifyToken ? (
+            <button
+              onClick={() => window.location.href = getSpotifyAuthUrl()}
+              className="btn-accent"
+            >
+              Connect Spotify
+            </button>
+          ) : (
+            <p className="text-sm text-green-400 font-medium">Spotify Connected 🎧</p>
+          )}
+        </div>
+
         <div className="py-6">
           <h1 className="text-3xl font-bold mb-6">Your Dashboard</h1>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column */}
             <div className="lg:col-span-2 space-y-6">
-              <WalletCard 
-                balance={walletBalance} 
-                recentTransactions={transactions.slice(0, 3)} 
-              />
-              
+              <WalletCard balance={walletBalance} recentTransactions={transactions.slice(0, 3)} />
               <NearbyDJs djs={mockDJs} />
-              
-              {/* Recent Requests */}
+
               <div className="card p-6">
                 <div className="flex items-center mb-6">
                   <h2 className="text-xl font-semibold">Your Recent Requests</h2>
                 </div>
-                
+
                 {requests.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400">No song requests yet</p>
@@ -162,10 +203,10 @@ const CustomerDashboard: React.FC = () => {
                 )}
               </div>
             </div>
-            
-            {/* Right Column */}
+
             <div>
-              <RequestForm onSubmit={handleRequestSubmit} />
+              {/* ✅ We pass the spotifyToken to RequestForm */}
+              <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} />
             </div>
           </div>
         </div>
