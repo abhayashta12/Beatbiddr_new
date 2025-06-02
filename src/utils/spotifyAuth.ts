@@ -1,5 +1,5 @@
 const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URL;
+const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
 
 if (!clientId) {
   console.error("Spotify Client ID not defined in env variables");
