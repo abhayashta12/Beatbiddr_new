@@ -1,6 +1,13 @@
 const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URL;
 
+if (!clientId) {
+  console.error("Spotify Client ID not defined in env variables");
+}
+if (!redirectUri) {
+  console.error("Spotify Redirect URI not defined in env variables");
+}
+
 const scopes = [
   'playlist-read-private',
   'playlist-read-collaborative',
