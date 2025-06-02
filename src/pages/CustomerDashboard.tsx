@@ -7,10 +7,15 @@ import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song } from '../types';
 import axios from 'axios';
 
-// ✅ Utility function to generate Spotify Auth URL
+// ✅ Spotify Auth Helper
+
 const getSpotifyAuthUrl = (): string => {
   const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
+
+  if (!clientId || !redirectUri) {
+    throw new Error("Spotify client ID or redirect URI not set in environment variables.");
+  }
 
   const scopes = [
     'playlist-read-private',
@@ -19,12 +24,15 @@ const getSpotifyAuthUrl = (): string => {
     'user-read-private',
   ];
 
-  return `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(
+  const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(
     redirectUri
   )}&scope=${scopes.join('%20')}`;
+
+  console.log("Generated Spotify OAuth URL:", authUrl);
+  return authUrl;
 };
 
-// ✅ Your existing mock data stays fully intact
+// ✅ Mock Data
 
 const mockDJs: DJ[] = [
   {
@@ -111,13 +119,15 @@ const mockTransactions: Transaction[] = [
   },
 ];
 
+// ✅ Main Customer Dashboard Component
+
 const CustomerDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(35);
   const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
 
-  // ✅ Extract token from URL after Spotify login redirect
+  // ✅ Handle Spotify token after redirect
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
@@ -162,7 +172,6 @@ const CustomerDashboard: React.FC = () => {
       <Navbar />
 
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        {/* ✅ This adds Spotify Connect button */}
         <div className="flex justify-end mb-4">
           {!spotifyToken ? (
             <button
@@ -205,7 +214,6 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
-              {/* ✅ We pass the spotifyToken to RequestForm */}
               <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} />
             </div>
           </div>
