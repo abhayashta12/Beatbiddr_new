@@ -5,7 +5,7 @@ import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song } from '../types';
-import axios from 'axios';
+
 
 // ✅ Spotify Auth Helper
 
