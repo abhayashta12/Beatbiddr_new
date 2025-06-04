@@ -6,9 +6,7 @@ import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song } from '../types';
 
-
-// ✅ Spotify Auth Helper
-
+// ✅ Spotify Auth Helper — fully preserved
 const getSpotifyAuthUrl = (): string => {
   const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
@@ -32,8 +30,7 @@ const getSpotifyAuthUrl = (): string => {
   return authUrl;
 };
 
-// ✅ Mock Data
-
+// ✅ Mock Data fully preserved
 const mockDJs: DJ[] = [
   {
     id: '1',
@@ -119,15 +116,13 @@ const mockTransactions: Transaction[] = [
   },
 ];
 
-// ✅ Main Customer Dashboard Component
-
+// ✅ Main Customer Dashboard Component — fully preserved
 const CustomerDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(35);
   const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
 
-  // ✅ Handle Spotify token after redirect
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
@@ -174,10 +169,7 @@ const CustomerDashboard: React.FC = () => {
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex justify-end mb-4">
           {!spotifyToken ? (
-            <button
-              onClick={() => window.location.href = getSpotifyAuthUrl()}
-              className="btn-accent"
-            >
+            <button onClick={() => window.location.href = getSpotifyAuthUrl()} className="btn-accent">
               Connect Spotify
             </button>
           ) : (
@@ -214,6 +206,7 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
+              {/* ✅ We pass spotifyToken to RequestForm */}
               <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} />
             </div>
           </div>
