@@ -47,3 +47,9 @@ export interface User {
   transactions: Transaction[];
   favorites: DJ[];
 }
+
+export interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  image: string;
+}
