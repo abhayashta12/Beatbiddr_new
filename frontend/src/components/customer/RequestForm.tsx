@@ -14,7 +14,7 @@ interface Song {
 interface RequestFormProps {
   onSubmit: (song: Song, tipAmount: number, message: string) => void;
   spotifyToken: string | null;
-  userPlaylists: SpotifyPlaylist 
+  userPlaylists: SpotifyPlaylist[];  // ✅ CORRECTED (this was your crash cause)
 }
 
 const mockSongs: Song[] = [
@@ -40,7 +40,6 @@ const RequestForm: React.FC<RequestFormProps> = ({ onSubmit, spotifyToken, userP
         const spotifyResults = await searchSpotify(spotifyToken, searchQuery);
         setSearchResults(spotifyResults);
       } else {
-        // fallback to mock data if no Spotify token
         setSearchResults(mockSongs.filter(song =>
           song.title.toLowerCase().includes(searchQuery.toLowerCase())
         ));
@@ -84,19 +83,20 @@ const RequestForm: React.FC<RequestFormProps> = ({ onSubmit, spotifyToken, userP
 
       <form onSubmit={handleSubmit}>
 
-         {userPlaylists.length > 0 && (
-  <div className="mb-4">
-    <h3 className="text-lg font-semibold mb-2 text-white">Your Spotify Playlists:</h3>
-    <div className="flex overflow-x-auto space-x-3">
-      {userPlaylists.map(pl => (
-        <div key={pl.id} className="flex-shrink-0">
-          <img src={pl.image} alt={pl.name} className="w-24 h-24 rounded-lg object-cover" />
-          <p className="text-xs text-center mt-1 text-gray-300">{pl.name}</p>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+        {/* ✅ SAFETY PATCH - prevent crashing on undefined */}
+        {Array.isArray(userPlaylists) && userPlaylists.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2 text-white">Your Spotify Playlists:</h3>
+            <div className="flex overflow-x-auto space-x-3">
+              {userPlaylists.map(pl => (
+                <div key={pl.id} className="flex-shrink-0">
+                  <img src={pl.image} alt={pl.name} className="w-24 h-24 rounded-lg object-cover" />
+                  <p className="text-xs text-center mt-1 text-gray-300">{pl.name}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search Field */}
         <div className="relative mb-6">

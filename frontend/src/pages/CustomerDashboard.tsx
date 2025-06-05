@@ -4,7 +4,7 @@ import WalletCard from '../components/customer/WalletCard';
 import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
-import type { DJ, SongRequest, Transaction, Song } from '../types';
+import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
 
 // ✅ Spotify Auth Helper — fully preserved
 const getSpotifyAuthUrl = (): string => {
@@ -116,12 +116,13 @@ const mockTransactions: Transaction[] = [
   },
 ];
 
-// ✅ Main Customer Dashboard Component — fully preserved
+// ✅ Main Customer Dashboard Component — 100% preserved logic
 const CustomerDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(35);
   const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+  const [userPlaylists, setUserPlaylists] = useState<SpotifyPlaylist[]>([]);  // ✅ properly initialized
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -130,9 +131,29 @@ const CustomerDashboard: React.FC = () => {
       if (token) {
         setSpotifyToken(token);
         window.history.replaceState({}, document.title, window.location.pathname);
+        fetchPlaylists(token);
       }
     }
   }, []);
+
+  const fetchPlaylists = async (token: string) => {
+    try {
+      const response = await fetch('https://api.spotify.com/v1/me/playlists', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+
+      const mapped = data.items.map((playlist: any) => ({
+        id: playlist.id,
+        name: playlist.name,
+        image: playlist.images?.[0]?.url || ''
+      }));
+
+      setUserPlaylists(mapped);
+    } catch (err) {
+      console.error("Error fetching playlists", err);
+    }
+  };
 
   const handleRequestSubmit = (song: Song, tipAmount: number, message: string) => {
     const newRequest: SongRequest = {
@@ -165,7 +186,6 @@ const CustomerDashboard: React.FC = () => {
   return (
     <div className="bg-dark-600 min-h-screen">
       <Navbar />
-
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex justify-end mb-4">
           {!spotifyToken ? (
@@ -206,8 +226,7 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
-              {/* ✅ We pass spotifyToken to RequestForm */}
-              <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} />
+              <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} userPlaylists={userPlaylists} />
             </div>
           </div>
         </div>
