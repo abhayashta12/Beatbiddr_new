@@ -132,17 +132,35 @@ const CustomerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const token = new URLSearchParams(hash.substring(1)).get('access_token');
-      if (token) {
-        setSpotifyToken(token);
-        window.history.replaceState({}, document.title, window.location.pathname);
-        fetchPlaylists(token);
-      }
+  const exchangeCodeForToken = async (code: string) => {
+  const res = await fetch(`/api/spotify/token?code=${encodeURIComponent(code)}`);
+  if (!res.ok) throw new Error('Token endpoint failed');
+  const data = await res.json();
+  return data.access_token as string;
+};
+
+ useEffect(() => {
+  const run = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (!code) return;
+
+    try {
+      const token = await exchangeCodeForToken(code); // you will add this function below
+      setSpotifyToken(token);
+
+      // remove ?code=... from URL (keeps /customer)
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      fetchPlaylists(token);
+    } catch (e) {
+      console.error('Spotify token exchange failed:', e);
     }
-  }, []);
+  };
+
+  run();
+}, []);
 
   const fetchPlaylists = async (token: string) => {
     try {
