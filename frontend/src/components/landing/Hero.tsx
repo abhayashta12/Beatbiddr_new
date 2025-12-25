@@ -2,12 +2,16 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Music } from 'lucide-react';
 import ThreeAnimation from './ThreeAnimation';
+import { useNavigate } from 'react-router-dom';
 
 interface HeroProps {
   onNavigate: (page: string) => void;
 }
 
 const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
+  
+  const navigate = useNavigate ();
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -67,14 +71,14 @@ const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row justify-center gap-4">
             <button 
               className="btn-primary group"
-              onClick={() => onNavigate('customer')}
+              onClick={() => navigate('customer')}
             >
               Get Started
               <ArrowRight className="inline-block ml-2 transition-transform group-hover:translate-x-1" size={18} />
             </button>
             <button 
               className="btn-ghost"
-              onClick={() => onNavigate('discover')}
+              onClick={() => navigate('discover')}
             >
               Discover DJs
             </button>
