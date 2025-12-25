@@ -139,7 +139,7 @@ const CustomerDashboard: React.FC = () => {
   return data.access_token as string;
 };
 
- useEffect(() => {
+useEffect(() => {
   const run = async () => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
