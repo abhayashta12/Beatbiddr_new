@@ -16,8 +16,11 @@ const scopes = [
 ];
 
 export const getSpotifyAuthUrl = (): string => {
-  return `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
-  redirectUri
-)}&scope=${scopes.join('%20')}`;
+  const state = crypto.randomUUID(); // modern browsers
+  sessionStorage.setItem('spotify_oauth_state', state);
 
+  return `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&scope=${scopes.join('%20')}&state=${state}&show_dialog=true`;
 };
+
