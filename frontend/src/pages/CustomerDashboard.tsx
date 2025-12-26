@@ -7,30 +7,7 @@ import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import { useAuth } from '../contexts/AuthContext'; // <-- adjust path if needed
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
-
-// ✅ Spotify Auth Helper — fully preserved
-const getSpotifyAuthUrl = (): string => {
-  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-  const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-
-  if (!clientId || !redirectUri) {
-    throw new Error('Spotify client ID or redirect URI not set in environment variables.');
-  }
-
-  const scopes = [
-    'playlist-read-private',
-    'playlist-read-collaborative',
-    'user-library-read',
-    'user-read-private',
-  ];
-
-  const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&scope=${scopes.join('%20')}`;
-
-  console.log('Generated Spotify OAuth URL:', authUrl);
-  return authUrl;
-};
+import { getSpotifyAuthUrl } from '../utils/spotifyAuth';
 
 // ✅ Mock Data fully preserved
 const mockDJs: DJ[] = [
@@ -138,6 +115,11 @@ const CustomerDashboard: React.FC = () => {
   const data = await res.json();
   return data.access_token as string;
 };
+
+useEffect(() => {
+  const saved = localStorage.getItem('spotify_access_token');
+  if (saved) setSpotifyToken(saved);
+}, []);
 
 useEffect(() => {
   const run = async () => {
