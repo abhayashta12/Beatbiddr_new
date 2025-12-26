@@ -1,17 +1,21 @@
 import axios from 'axios';
 
 export const searchSpotify = async (token: string, query: string) => {
-  const response = await axios.get('https://api.spotify.com/v1/search', {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { q: query, type: 'track', limit: 10 },
-  });
-
-  return response.data.tracks.items.map((item: any) => ({
-    id: item.id,
-    title: item.name,
-    artist: item.artists.map((a: any) => a.name).join(', '),
-    albumCover: item.album.images[0]?.url || '',
-  }));
+  try {
+    const response = await axios.get('https://api.spotify.com/v1/search', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { q: query, type: 'track', limit: 10 },
+    });
+    return response.data.tracks.items.map((item: any) => ({
+      id: item.id,
+      title: item.name,
+      artist: item.artists.map((a: any) => a.name).join(', '),
+      albumCover: item.album.images[0]?.url || '',
+    }));
+  } catch (err: any) {
+    console.error('Spotify search failed:', err?.response?.status, err?.response?.data || err);
+    throw err;
+  }
 };
 
 export const getUserPlaylists = async (token: string) => {
