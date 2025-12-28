@@ -1,8 +1,7 @@
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
-  return res.status(200).send(JSON.stringify({ ok: true, msg: "token route alive" }));
-};
+  res.status(200).json({ ok: true, msg: "token route alive" });
+}
 
 
 
