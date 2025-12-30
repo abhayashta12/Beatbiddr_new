@@ -20,28 +20,37 @@ const CustomerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const fetchRequests = async () => {
+    try {
+      const requestsRes = await fetch('/api/requests');
+      const requestsData = await requestsRes.json();
+      setRequests(requestsData);
+    } catch (error) {
+      console.error('Failed to fetch requests:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Replace with your actual API endpoints
-        const [walletRes, djsRes, requestsRes, transactionsRes] = await Promise.all([
+        const [walletRes, djsRes, transactionsRes] = await Promise.all([
           fetch('/api/wallet'),
           fetch('/api/djs'),
-          fetch('/api/requests'),
           fetch('/api/transactions'),
         ]);
 
         const walletData = await walletRes.json();
         const djsData = await djsRes.json();
-        const requestsData = await requestsRes.json();
         const transactionsData = await transactionsRes.json();
 
         setWalletBalance(walletData.balance);
         setDJs(djsData);
-        setRequests(requestsData);
         setTransactions(transactionsData);
+        
+        fetchRequests();
       } catch (error) {
-        console.error('Failed to fetch data:', error);
+        console.error('Failed to fetch initial data:', error);
       }
     };
 
@@ -123,13 +132,12 @@ useEffect(() => {
         throw new Error('Failed to submit request');
       }
 
-      const newRequest = await response.json();
+      // Refetch requests to display the new one
+      fetchRequests();
 
-      // Optimistically update UI
-      setRequests([newRequest, ...requests]);
       setWalletBalance((prev) => prev - tipAmount);
 
-      // Optionally, refetch transactions or add the new one
+      // Optimistically update transactions
       const newTransaction: Transaction = {
         id: `t-${Date.now()}`,
         type: 'tip',
