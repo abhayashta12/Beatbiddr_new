@@ -14,7 +14,7 @@ interface Song {
 interface RequestFormProps {
   onSubmit: (song: Song, tipAmount: number, message: string) => void;
   spotifyToken: string | null;
-  userPlaylists: SpotifyPlaylist[];  // ✅ CORRECTED (this was your crash cause)
+  userPlaylists: SpotifyPlaylist[];  
 }
 
 const mockSongs: Song[] = [

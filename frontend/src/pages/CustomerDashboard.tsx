@@ -9,105 +9,44 @@ import { useAuth } from '../contexts/AuthContext'; // <-- adjust path if needed
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
 import { getSpotifyAuthUrl } from '../utils/spotifyAuth';
 
-// ✅ Mock Data fully preserved
-const mockDJs: DJ[] = [
-  {
-    id: '1',
-    name: 'DJ Spinz',
-    avatar:
-      'https://images.pexels.com/photos/1699161/pexels-photo-1699161.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    club: 'Neon Lounge',
-    location: 'Downtown',
-    genre: ['House', 'EDM'],
-    rating: 4.8,
-    isLive: true,
-  },
-  {
-    id: '2',
-    name: 'DJ Beatrix',
-    avatar:
-      'https://images.pexels.com/photos/3484683/pexels-photo-3484683.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    club: 'The Vault',
-    location: 'South District',
-    genre: ['Hip-Hop', 'R&B'],
-    rating: 4.6,
-    isLive: false,
-  },
-];
-
-const mockRequests: SongRequest[] = [
-  {
-    id: '1',
-    song: {
-      id: '101',
-      title: 'Blinding Lights',
-      artist: 'The Weeknd',
-      album: 'After Hours',
-      albumCover:
-        'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    },
-    requester: {
-      id: 'user1',
-      name: 'Alex Johnson',
-      avatar: 'https://example.com/avatar1.jpg',
-    },
-    tipAmount: 15,
-    timestamp: new Date().toISOString(),
-    status: 'pending',
-  },
-  {
-    id: '2',
-    song: {
-      id: '102',
-      title: "Don't Start Now",
-      artist: 'Dua Lipa',
-      album: 'Future Nostalgia',
-      albumCover:
-        'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    },
-    requester: {
-      id: 'user1',
-      name: 'Alex Johnson',
-      avatar: 'https://example.com/avatar1.jpg',
-    },
-    tipAmount: 10,
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-    status: 'accepted',
-  },
-];
-
-const mockTransactions: Transaction[] = [
-  {
-    id: 't1',
-    type: 'deposit',
-    amount: 50,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-  },
-  {
-    id: 't2',
-    type: 'tip',
-    amount: 15,
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    recipient: 'DJ Spinz',
-    song: {
-      id: '101',
-      title: 'Blinding Lights',
-      artist: 'The Weeknd',
-      album: 'After Hours',
-      albumCover: 'https://example.com/album1.jpg',
-    },
-  },
-];
-
-// ✅ Main Customer Dashboard Component — 100% preserved logic (with Logout)
 const CustomerDashboard: React.FC = () => {
-  const [walletBalance, setWalletBalance] = useState(35);
-  const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [djs, setDJs] = useState<DJ[]>([]);
+  const [requests, setRequests] = useState<SongRequest[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [userPlaylists, setUserPlaylists] = useState<SpotifyPlaylist[]>([]);
+  const [selectedDJ, setSelectedDJ] = useState<DJ | null>(null);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Replace with your actual API endpoints
+        const [walletRes, djsRes, requestsRes, transactionsRes] = await Promise.all([
+          fetch('/api/wallet'),
+          fetch('/api/djs'),
+          fetch('/api/requests'),
+          fetch('/api/transactions'),
+        ]);
+
+        const walletData = await walletRes.json();
+        const djsData = await djsRes.json();
+        const requestsData = await requestsRes.json();
+        const transactionsData = await transactionsRes.json();
+
+        setWalletBalance(walletData.balance);
+        setDJs(djsData);
+        setRequests(requestsData);
+        setTransactions(transactionsData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const exchangeCodeForToken = async (code: string) => {
   const res = await fetch(`/api/spotify/token?code=${encodeURIComponent(code)}`);
@@ -163,32 +102,46 @@ useEffect(() => {
     }
   };
 
-  const handleRequestSubmit = (song: Song, tipAmount: number, message: string) => {
-    const newRequest: SongRequest = {
-      id: `req-${Date.now()}`,
-      song,
-      requester: {
-        id: 'user1',
-        name: 'Alex Johnson',
-        avatar: 'https://example.com/avatar1.jpg',
-      },
-      tipAmount,
-      timestamp: new Date().toISOString(),
-      status: 'pending',
-    };
+  const handleSelectDJ = (dj: DJ) => {
+    setSelectedDJ(dj);
+  };
 
-    const newTransaction: Transaction = {
-      id: `t-${Date.now()}`,
-      type: 'tip',
-      amount: tipAmount,
-      timestamp: new Date().toISOString(),
-      recipient: 'DJ Spinz',
-      song,
-    };
+  const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
+    if (!selectedDJ) {
+      console.error('No DJ selected');
+      // Optionally, show an error to the user
+      return;
+    }
+    try {
+      const response = await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ song, tipAmount, message, userId: user?.id, djId: selectedDJ.id }),
+      });
 
-    setRequests([newRequest, ...requests]);
-    setTransactions([newTransaction, ...transactions]);
-    setWalletBalance((prev) => prev - tipAmount);
+      if (!response.ok) {
+        throw new Error('Failed to submit request');
+      }
+
+      const newRequest = await response.json();
+
+      // Optimistically update UI
+      setRequests([newRequest, ...requests]);
+      setWalletBalance((prev) => prev - tipAmount);
+
+      // Optionally, refetch transactions or add the new one
+      const newTransaction: Transaction = {
+        id: `t-${Date.now()}`,
+        type: 'tip',
+        amount: tipAmount,
+        timestamp: new Date().toISOString(),
+        recipient: selectedDJ.name,
+        song,
+      };
+      setTransactions([newTransaction, ...transactions]);
+    } catch (error) {
+      console.error('Failed to submit song request:', error);
+    }
   };
 
   // ✅ Logout handler (safe + redirect to login)
@@ -234,7 +187,7 @@ useEffect(() => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <WalletCard balance={walletBalance} recentTransactions={transactions.slice(0, 3)} />
-              <NearbyDJs djs={mockDJs} />
+              <NearbyDJs djs={djs} onSelectDJ={handleSelectDJ} selectedDJ={selectedDJ} />
 
               <div className="card p-6">
                 <div className="flex items-center mb-6">
