@@ -5,7 +5,7 @@ import WalletCard from '../components/customer/WalletCard';
 import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
-import { useAuth } from '../contexts/AuthContext'; // <-- adjust path if needed
+import { useAuth } from '../contexts/AuthContext';
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
 import { getSpotifyAuthUrl } from '../utils/spotifyAuth';
 
@@ -99,6 +99,43 @@ const mockTransactions: Transaction[] = [
   },
 ];
 
+// ✅ Small helper: collapsible banner + body (no styling changes beyond cursor + arrow rotation)
+type CollapsibleSectionProps = {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+};
+
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
+  title,
+  isOpen,
+  onToggle,
+  children,
+}) => {
+  return (
+    <div className="card p-6">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 text-left hover:cursor-pointer"
+        aria-expanded={isOpen}
+      >
+        <span
+          className={`text-gray-300 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        >
+          ▼
+        </span>
+        <h2 className="text-xl font-semibold">{title}</h2>
+      </button>
+
+      {isOpen && <div className="mt-6">{children}</div>}
+    </div>
+  );
+};
+
 // ✅ Main Customer Dashboard Component — 100% preserved logic (with Logout)
 const CustomerDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(35);
@@ -109,40 +146,47 @@ const CustomerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  // ✅ Collapsible state (collapsed by default)
+  const [openSections, setOpenSections] = useState({
+    wallet: false,
+    djs: false,
+    recent: false,
+  });
+
   const exchangeCodeForToken = async (code: string) => {
-  const res = await fetch(`/api/spotify/token?code=${encodeURIComponent(code)}`);
-  if (!res.ok) throw new Error('Token endpoint failed');
-  const data = await res.json();
-  return data.access_token as string;
-};
-
-useEffect(() => {
-  const saved = localStorage.getItem('spotify_access_token');
-  if (saved) setSpotifyToken(saved);
-}, []);
-
-useEffect(() => {
-  const run = async () => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-
-    if (!code) return;
-
-    try {
-      const token = await exchangeCodeForToken(code); // you will add this function below
-      setSpotifyToken(token);
-
-      // remove ?code=... from URL (keeps /customer)
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      fetchPlaylists(token);
-    } catch (e) {
-      console.error('Spotify token exchange failed:', e);
-    }
+    const res = await fetch(`/api/spotify/token?code=${encodeURIComponent(code)}`);
+    if (!res.ok) throw new Error('Token endpoint failed');
+    const data = await res.json();
+    return data.access_token as string;
   };
 
-  run();
-}, []);
+  useEffect(() => {
+    const saved = localStorage.getItem('spotify_access_token');
+    if (saved) setSpotifyToken(saved);
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+
+      if (!code) return;
+
+      try {
+        const token = await exchangeCodeForToken(code);
+        setSpotifyToken(token);
+
+        // remove ?code=... from URL (keeps /customer)
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        fetchPlaylists(token);
+      } catch (e) {
+        console.error('Spotify token exchange failed:', e);
+      }
+    };
+
+    run();
+  }, []);
 
   const fetchPlaylists = async (token: string) => {
     try {
@@ -217,7 +261,6 @@ useEffect(() => {
             <p className="text-sm text-green-400 font-medium">Spotify Connected 🎧</p>
           )}
 
-          {/* Visible when signed in; logs out and goes to /login */}
           {user && (
             <button
               onClick={handleLogout}
@@ -233,14 +276,37 @@ useEffect(() => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <WalletCard balance={walletBalance} recentTransactions={transactions.slice(0, 3)} />
-              <NearbyDJs djs={mockDJs} />
+              {/* ✅ My Wallet dropdown */}
+              <CollapsibleSection
+                title="My Wallet"
+                isOpen={openSections.wallet}
+                onToggle={() =>
+                  setOpenSections((prev) => ({ ...prev, wallet: !prev.wallet }))
+                }
+              >
+                <WalletCard
+                  balance={walletBalance}
+                  recentTransactions={transactions.slice(0, 3)}
+                />
+              </CollapsibleSection>
 
-              <div className="card p-6">
-                <div className="flex items-center mb-6">
-                  <h2 className="text-xl font-semibold">Your Recent Requests</h2>
-                </div>
+              {/* ✅ DJs Nearby dropdown */}
+              <CollapsibleSection
+                title="DJs Nearby"
+                isOpen={openSections.djs}
+                onToggle={() => setOpenSections((prev) => ({ ...prev, djs: !prev.djs }))}
+              >
+                <NearbyDJs djs={mockDJs} />
+              </CollapsibleSection>
 
+              {/* ✅ Recent Requests dropdown */}
+              <CollapsibleSection
+                title="Your Recent Requests"
+                isOpen={openSections.recent}
+                onToggle={() =>
+                  setOpenSections((prev) => ({ ...prev, recent: !prev.recent }))
+                }
+              >
                 {requests.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400">No song requests yet</p>
@@ -253,7 +319,7 @@ useEffect(() => {
                     ))}
                   </div>
                 )}
-              </div>
+              </CollapsibleSection>
             </div>
 
             <div>
@@ -270,4 +336,4 @@ useEffect(() => {
   );
 };
 
-export default CustomerDashboard; 
+export default CustomerDashboard;
