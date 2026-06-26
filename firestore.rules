@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can only read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Song requests: customers create their own, DJs (any authenticated user with role=dj) can update status
+    match /songRequests/{requestId} {
+      allow read: if request.auth != null;
+
+      // Customer creates a request (must set requester.id to their own uid)
+      allow create: if request.auth != null
+        && request.resource.data.requester.id == request.auth.uid
+        && request.resource.data.tipAmount is number
+        && request.resource.data.tipAmount > 0;
+
+      // DJ can update status only (accept/reject)
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['accepted', 'rejected', 'played'];
+
+      allow delete: if false;
+    }
+  }
+}

@@ -1,42 +1,40 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Music } from 'lucide-react';
 import ThreeAnimation from './ThreeAnimation';
+import { useAuth } from '../../contexts/AuthContext';
 
-interface HeroProps {
-  onNavigate: (page: string) => void;
-}
+const Hero: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, role } = useAuth();
 
-const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
+  const handleGetStarted = () => {
+    if (!user) return navigate('/login');
+    if (role === null) return navigate('/select-role');
+    navigate(role === 'dj' ? '/dj' : '/customer');
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-        delayChildren: 0.3,
-      },
+      transition: { staggerChildren: 0.2, delayChildren: 0.3 },
     },
   };
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.6, ease: 'easeOut' },
-    },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
   };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background elements */}
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-600 z-0"></div>
       <div className="absolute inset-0 z-0 opacity-50">
         <ThreeAnimation />
       </div>
 
-      {/* Content */}
       <div className="container mx-auto px-4 z-10 text-center relative">
         <motion.div
           variants={containerVariants}
@@ -57,32 +55,22 @@ const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
             Tip DJs. Request Songs. Elevate Your Night.
           </motion.h1>
 
-          <motion.p
-            variants={itemVariants}
-            className="text-xl md:text-2xl text-gray-300 mb-8"
-          >
+          <motion.p variants={itemVariants} className="text-xl md:text-2xl text-gray-300 mb-8">
             Connect instantly with DJs, bid for your favorite tracks, and own the club's playlist.
           </motion.p>
 
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row justify-center gap-4">
-            <button 
-              className="btn-primary group"
-              onClick={() => onNavigate('customer')}
-            >
+            <button className="btn-primary group" onClick={handleGetStarted}>
               Get Started
               <ArrowRight className="inline-block ml-2 transition-transform group-hover:translate-x-1" size={18} />
             </button>
-            <button 
-              className="btn-ghost"
-              onClick={() => onNavigate('discover')}
-            >
+            <button className="btn-ghost" onClick={() => navigate('/discover')}>
               Discover DJs
             </button>
           </motion.div>
         </motion.div>
       </div>
 
-      {/* Decorative glow effects */}
       <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-primary-500/20 rounded-full filter blur-[100px] z-0"></div>
       <div className="absolute top-1/4 right-1/3 w-64 h-64 bg-neon-500/20 rounded-full filter blur-[80px] z-0"></div>
       <div className="absolute top-1/2 left-1/3 w-72 h-72 bg-accent-500/20 rounded-full filter blur-[90px] z-0"></div>

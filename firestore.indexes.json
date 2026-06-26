@@ -1,0 +1,20 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "requester.id", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tipAmount", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

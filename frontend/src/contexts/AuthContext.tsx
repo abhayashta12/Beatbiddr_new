@@ -1,81 +1,89 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+import {
+  signInWithPopup,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
-  User
+  User,
 } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
-
-
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,            
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+export type UserRole = 'customer' | 'dj' | null;
 
 interface AuthContextType {
   user: User | null;
+  role: UserRole;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  setUserRole: (role: 'customer' | 'dj') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 
+const googleProvider = new GoogleAuthProvider();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (firebaseUser) {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const snap = await getDoc(userRef);
+
+        if (snap.exists()) {
+          setRole((snap.data().role as UserRole) ?? null);
+        } else {
+          await setDoc(userRef, {
+            name: firebaseUser.displayName,
+            email: firebaseUser.email,
+            avatar: firebaseUser.photoURL,
+            role: null,
+            walletBalance: 0,
+            createdAt: new Date().toISOString(),
+          });
+          setRole(null);
+        }
+      } else {
+        setRole(null);
+      }
+
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  const signInWithGoogle = () => {
-    return signInWithPopup(auth, googleProvider);
-  };  
-
-  const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const signInWithGoogle = async () => {
+    await signInWithPopup(auth, googleProvider);
   };
 
-  const value = {
-    user,
-    loading,
-    signInWithGoogle,
-    logout
+  const logout = async () => {
+    await signOut(auth);
+  };
+
+  const setUserRole = async (newRole: 'customer' | 'dj') => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, { role: newRole });
+    setRole(newRole);
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, role, loading, signInWithGoogle, logout, setUserRole }}>
       {!loading && children}
     </AuthContext.Provider>
   );
-}; 
+};

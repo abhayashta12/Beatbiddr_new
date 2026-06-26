@@ -10,6 +10,7 @@ export const searchSpotify = async (token: string, query: string) => {
     id: item.id,
     title: item.name,
     artist: item.artists.map((a: any) => a.name).join(', '),
+    album: item.album.name as string,
     albumCover: item.album.images[0]?.url || '',
   }));
 };

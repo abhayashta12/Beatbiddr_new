@@ -5,32 +5,23 @@ import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
+import { getSpotifyAuthUrl } from '../utils/spotifyAuth';
+import { getUserPlaylists } from '../utils/spotifyApi';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  doc,
+  updateDoc,
+  arrayUnion,
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useNavigate } from 'react-router-dom';
 
-// ✅ Spotify Auth Helper — fully preserved
-const getSpotifyAuthUrl = (): string => {
-  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-  const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
-
-  if (!clientId || !redirectUri) {
-    throw new Error("Spotify client ID or redirect URI not set in environment variables.");
-  }
-
-  const scopes = [
-    'playlist-read-private',
-    'playlist-read-collaborative',
-    'user-library-read',
-    'user-read-private',
-  ];
-
-  const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&scope=${scopes.join('%20')}`;
-
-  console.log("Generated Spotify OAuth URL:", authUrl);
-  return authUrl;
-};
-
-// ✅ Mock Data fully preserved
 const mockDJs: DJ[] = [
   {
     id: '1',
@@ -54,76 +45,46 @@ const mockDJs: DJ[] = [
   },
 ];
 
-const mockRequests: SongRequest[] = [
-  {
-    id: '1',
-    song: {
-      id: '101',
-      title: 'Blinding Lights',
-      artist: 'The Weeknd',
-      album: 'After Hours',
-      albumCover: 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    },
-    requester: {
-      id: 'user1',
-      name: 'Alex Johnson',
-      avatar: 'https://example.com/avatar1.jpg',
-    },
-    tipAmount: 15,
-    timestamp: new Date().toISOString(),
-    status: 'pending',
-  },
-  {
-    id: '2',
-    song: {
-      id: '102',
-      title: "Don't Start Now",
-      artist: 'Dua Lipa',
-      album: 'Future Nostalgia',
-      albumCover: 'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    },
-    requester: {
-      id: 'user1',
-      name: 'Alex Johnson',
-      avatar: 'https://example.com/avatar1.jpg',
-    },
-    tipAmount: 10,
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-    status: 'accepted',
-  },
-];
-
-const mockTransactions: Transaction[] = [
-  {
-    id: 't1',
-    type: 'deposit',
-    amount: 50,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-  },
-  {
-    id: 't2',
-    type: 'tip',
-    amount: 15,
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    recipient: 'DJ Spinz',
-    song: {
-      id: '101',
-      title: 'Blinding Lights',
-      artist: 'The Weeknd',
-      album: 'After Hours',
-      albumCover: 'https://example.com/album1.jpg',
-    },
-  },
-];
-
-// ✅ Main Customer Dashboard Component — 100% preserved logic
 const CustomerDashboard: React.FC = () => {
-  const [walletBalance, setWalletBalance] = useState(35);
-  const [requests, setRequests] = useState<SongRequest[]>(mockRequests);
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
-  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
-  const [userPlaylists, setUserPlaylists] = useState<SpotifyPlaylist[]>([]);  // ✅ properly initialized
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [requests, setRequests] = useState<SongRequest[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
+  const [userPlaylists, setUserPlaylists] = useState<SpotifyPlaylist[]>([]);
+
+  // Load wallet balance + transactions from Firestore
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setWalletBalance(snap.data().walletBalance ?? 0);
+        setTransactions(snap.data().transactions ?? []);
+      }
+    });
+    return unsub;
+  }, [user]);
+
+  // Load song requests from Firestore (real-time)
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'songRequests'),
+      where('requester.id', '==', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setRequests(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) }))
+      );
+    });
+    return unsub;
+  }, [user]);
+
+  // Extract Spotify implicit grant token from URL hash
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
@@ -138,35 +99,33 @@ const CustomerDashboard: React.FC = () => {
 
   const fetchPlaylists = async (token: string) => {
     try {
-      const response = await fetch('https://api.spotify.com/v1/me/playlists', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-
-      const mapped = data.items.map((playlist: any) => ({
-        id: playlist.id,
-        name: playlist.name,
-        image: playlist.images?.[0]?.url || ''
-      }));
-
-      setUserPlaylists(mapped);
+      const playlists = await getUserPlaylists(token);
+      setUserPlaylists(playlists);
     } catch (err) {
-      console.error("Error fetching playlists", err);
+      console.error('Error fetching playlists', err);
     }
   };
 
-  const handleRequestSubmit = (song: Song, tipAmount: number, message: string) => {
-    const newRequest: SongRequest = {
-      id: `req-${Date.now()}`,
+  const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
+    if (!user) return;
+
+    if (walletBalance < tipAmount) {
+      alert('Insufficient wallet balance. Please add funds first.');
+      navigate('/wallet');
+      return;
+    }
+
+    const newRequest = {
       song,
       requester: {
-        id: 'user1',
-        name: 'Alex Johnson',
-        avatar: 'https://example.com/avatar1.jpg',
+        id: user.uid,
+        name: user.displayName ?? 'Anonymous',
+        avatar: user.photoURL ?? '',
       },
       tipAmount,
+      message,
       timestamp: new Date().toISOString(),
-      status: 'pending',
+      status: 'pending' as const,
     };
 
     const newTransaction: Transaction = {
@@ -178,9 +137,14 @@ const CustomerDashboard: React.FC = () => {
       song,
     };
 
-    setRequests([newRequest, ...requests]);
-    setTransactions([newTransaction, ...transactions]);
-    setWalletBalance(prev => prev - tipAmount);
+    const userRef = doc(db, 'users', user.uid);
+    await Promise.all([
+      addDoc(collection(db, 'songRequests'), newRequest),
+      updateDoc(userRef, {
+        walletBalance: walletBalance - tipAmount,
+        transactions: arrayUnion(newTransaction),
+      }),
+    ]);
   };
 
   return (
@@ -189,7 +153,10 @@ const CustomerDashboard: React.FC = () => {
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="flex justify-end mb-4">
           {!spotifyToken ? (
-            <button onClick={() => window.location.href = getSpotifyAuthUrl()} className="btn-accent">
+            <button
+              onClick={() => (window.location.href = getSpotifyAuthUrl())}
+              className="btn-accent"
+            >
               Connect Spotify
             </button>
           ) : (
@@ -209,7 +176,6 @@ const CustomerDashboard: React.FC = () => {
                 <div className="flex items-center mb-6">
                   <h2 className="text-xl font-semibold">Your Recent Requests</h2>
                 </div>
-
                 {requests.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-400">No song requests yet</p>
@@ -217,7 +183,7 @@ const CustomerDashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {requests.map(request => (
+                    {requests.map((request) => (
                       <SongCard key={request.id} request={request} />
                     ))}
                   </div>
@@ -226,7 +192,11 @@ const CustomerDashboard: React.FC = () => {
             </div>
 
             <div>
-              <RequestForm onSubmit={handleRequestSubmit} spotifyToken={spotifyToken} userPlaylists={userPlaylists} />
+              <RequestForm
+                onSubmit={handleRequestSubmit}
+                spotifyToken={spotifyToken}
+                userPlaylists={userPlaylists}
+              />
             </div>
           </div>
         </div>

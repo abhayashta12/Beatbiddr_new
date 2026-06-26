@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, DollarSign, Music, Send } from 'lucide-react';
-import { searchSpotify } from '../../utils/spotifyApi'; 
-import { SpotifyPlaylist } from '../../types';
-
-interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  albumCover: string;
-}
+import { searchSpotify } from '../../utils/spotifyApi';
+import type { Song, SpotifyPlaylist } from '../../types';
 
 interface RequestFormProps {
   onSubmit: (song: Song, tipAmount: number, message: string) => void;

@@ -2,7 +2,7 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
-  album: string;
+  album?: string;
   albumCover: string;
 }
 
@@ -15,6 +15,7 @@ export interface SongRequest {
     avatar: string;
   };
   tipAmount: number;
+  message?: string;
   timestamp: string;
   status: 'pending' | 'accepted' | 'rejected' | 'played';
 }

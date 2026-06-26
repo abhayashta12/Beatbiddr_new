@@ -3,15 +3,11 @@ import Navbar from '../components/layout/Navbar';
 import Hero from '../components/landing/Hero';
 import Features from '../components/landing/Features';
 
-interface HomeProps {
-  onNavigate: (page: string) => void;
-}
-
-const Home: React.FC<HomeProps> = ({ onNavigate }) => {
+const Home: React.FC = () => {
   return (
     <div className="bg-dark-600 min-h-screen">
-      <Navbar onNavigate={onNavigate} />
-      <Hero onNavigate={onNavigate} />
+      <Navbar />
+      <Hero />
       <Features />
     </div>
   );

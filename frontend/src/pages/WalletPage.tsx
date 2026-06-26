@@ -1,48 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../components/layout/Navbar';
 import WalletManagement from '../components/wallet/WalletManagement';
 import type { Transaction } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
-interface WalletPageProps {
-  onNavigate: (path: string) => void;
-}
+const WalletPage: React.FC = () => {
+  const { user } = useAuth();
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-const WalletPage: React.FC<WalletPageProps> = ({ onNavigate }) => {
-  const [balance, setBalance] = useState(35);
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: 't1',
-      type: 'deposit',
-      amount: 50,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-    },
-    {
-      id: 't2',
-      type: 'tip',
-      amount: 15,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      recipient: 'DJ Spinz',
-    },
-  ]);
+  useEffect(() => {
+    if (!user) return;
+    const ref = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setBalance(snap.data().walletBalance ?? 0);
+        setTransactions(snap.data().transactions ?? []);
+      }
+    });
+    return unsub;
+  }, [user]);
 
-  const handleDeposit = (amount: number) => {
-    // Add to balance
-    setBalance(prev => prev + amount);
-    
-    // Add transaction record
+  const handleDeposit = async (amount: number) => {
+    if (!user) return;
     const newTransaction: Transaction = {
       id: `t-${Date.now()}`,
       type: 'deposit',
       amount,
       timestamp: new Date().toISOString(),
     };
-    
-    setTransactions(prev => [newTransaction, ...prev]);
+    const ref = doc(db, 'users', user.uid);
+    await updateDoc(ref, {
+      walletBalance: balance + amount,
+      transactions: arrayUnion(newTransaction),
+    });
   };
 
   return (
     <div className="bg-dark-600 min-h-screen">
-      <Navbar onNavigate={onNavigate} />
+      <Navbar />
       <div className="pt-24 px-4 sm:px-6 lg:px-8 pb-12">
         <WalletManagement
           balance={balance}

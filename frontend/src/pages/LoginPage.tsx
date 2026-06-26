@@ -9,30 +9,30 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { signInWithGoogle } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleGoogleSignIn = (e: React.MouseEvent) => {
-    // Reset any previous errors
+  const handleGoogleSignIn = async () => {
     setError(null);
-    
-    // Direct call to signInWithGoogle within the click handler
-    signInWithGoogle()
-      .then(() => {
-        navigate('/customer');
-      })
-      .catch((error) => {
-        console.error('Failed to sign in:', error);
-        if (error.code === 'auth/popup-blocked') {
-          setError('Please enable popups for this site to sign in with Google. Check your browser settings and try again.');
-        } else {
-          setError('Failed to sign in. Please try again.');
-        }
-      });
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      // AuthContext sets role; App.tsx redirects based on role.
+      // If role is null → /select-role; else → /dj or /customer
+      navigate('/select-role', { replace: true });
+    } catch (err: any) {
+      if (err.code === 'auth/popup-blocked') {
+        setError('Please enable popups for this site to sign in with Google.');
+      } else {
+        setError('Failed to sign in. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-dark-600">
       <Navbar />
-      
       <div className="flex items-center justify-center min-h-screen px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -60,10 +60,15 @@ const LoginPage: React.FC = () => {
 
             <button
               onClick={handleGoogleSignIn}
-              className="w-full btn-primary flex items-center justify-center space-x-3"
+              disabled={loading}
+              className="w-full btn-primary flex items-center justify-center space-x-3 disabled:opacity-50"
             >
-              <LogIn size={20} />
-              <span>Sign in with Google</span>
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <LogIn size={20} />
+              )}
+              <span>{loading ? 'Signing in…' : 'Sign in with Google'}</span>
             </button>
 
             <div className="mt-6 text-center text-sm text-gray-400">

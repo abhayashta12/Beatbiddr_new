@@ -1,19 +1,44 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import type { DJ } from '../types';
 import { MapPin, Music, Star } from 'lucide-react';
 
-interface DiscoverDJsPageProps {
-  onNavigate: (page: string) => void;
-}
+const mockDJs: DJ[] = [
+  {
+    id: '1',
+    name: 'DJ Spinz',
+    avatar: 'https://images.pexels.com/photos/1699161/pexels-photo-1699161.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    club: 'Neon Lounge',
+    location: '0.5 miles away',
+    genre: ['House', 'EDM'],
+    rating: 4.8,
+    isLive: true,
+  },
+  {
+    id: '2',
+    name: 'DJ Beatrix',
+    avatar: 'https://images.pexels.com/photos/3484683/pexels-photo-3484683.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    club: 'The Vault',
+    location: '1.2 miles away',
+    genre: ['Hip-Hop', 'R&B'],
+    rating: 4.6,
+    isLive: false,
+  },
+  {
+    id: '3',
+    name: 'DJ Luna',
+    avatar: 'https://images.pexels.com/photos/2264753/pexels-photo-2264753.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    club: 'Skyline Club',
+    location: '2.0 miles away',
+    genre: ['Techno', 'Progressive'],
+    rating: 4.9,
+    isLive: true,
+  },
+];
 
-interface Location {
-  latitude: number;
-  longitude: number;
-}
-
-const DiscoverDJsPage: React.FC<DiscoverDJsPageProps> = ({ onNavigate }) => {
-  const [location, setLocation] = useState<Location | null>(null);
+const DiscoverDJsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nearbyDJs, setNearbyDJs] = useState<DJ[]>([]);
@@ -21,80 +46,41 @@ const DiscoverDJsPage: React.FC<DiscoverDJsPageProps> = ({ onNavigate }) => {
   useEffect(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
+        () => {
+          setNearbyDJs(mockDJs);
           setLoading(false);
-          // Simulate fetching nearby DJs based on location
-          fetchNearbyDJs(position.coords.latitude, position.coords.longitude);
         },
-        (error) => {
-          setError('Unable to get your location. Please enable location services.');
+        () => {
+          // Location denied — still show DJs, just without sorting by distance
+          setNearbyDJs(mockDJs);
+          setError('Location unavailable — showing all nearby DJs.');
           setLoading(false);
         }
       );
     } else {
-      setError('Geolocation is not supported by your browser.');
+      setNearbyDJs(mockDJs);
       setLoading(false);
     }
   }, []);
 
-  const fetchNearbyDJs = (latitude: number, longitude: number) => {
-    // Simulated API call - replace with actual API integration
-    const mockDJs: DJ[] = [
-      {
-        id: '1',
-        name: 'DJ Spinz',
-        avatar: 'https://images.pexels.com/photos/1699161/pexels-photo-1699161.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-        club: 'Neon Lounge',
-        location: '0.5 miles away',
-        genre: ['House', 'EDM'],
-        rating: 4.8,
-        isLive: true,
-      },
-      {
-        id: '2',
-        name: 'DJ Beatrix',
-        avatar: 'https://images.pexels.com/photos/3484683/pexels-photo-3484683.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-        club: 'The Vault',
-        location: '1.2 miles away',
-        genre: ['Hip-Hop', 'R&B'],
-        rating: 4.6,
-        isLive: false,
-      },
-      {
-        id: '3',
-        name: 'DJ Luna',
-        avatar: 'https://images.pexels.com/photos/2264753/pexels-photo-2264753.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-        club: 'Skyline Club',
-        location: '2.0 miles away',
-        genre: ['Techno', 'Progressive'],
-        rating: 4.9,
-        isLive: true,
-      },
-    ];
-
-    setNearbyDJs(mockDJs);
-  };
-
   return (
     <div className="bg-dark-600 min-h-screen">
-      <Navbar onNavigate={onNavigate} />
-      
+      <Navbar />
+
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="py-6">
           <h1 className="text-3xl font-bold mb-2">Discover DJs Near You</h1>
           <p className="text-gray-400 mb-8">Find and connect with top DJs in your area</p>
 
+          {error && (
+            <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-yellow-400 text-sm">
+              {error}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-            </div>
-          ) : error ? (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
-              {error}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -127,12 +113,10 @@ const DiscoverDJsPage: React.FC<DiscoverDJsPageProps> = ({ onNavigate }) => {
                       <span className="mx-2">•</span>
                       <span className="text-sm">{dj.location}</span>
                     </div>
-
                     <div className="flex items-center text-gray-400">
                       <Music size={16} className="mr-2" />
                       <span>{dj.genre.join(', ')}</span>
                     </div>
-
                     <div className="flex items-center text-yellow-400">
                       <Star size={16} className="mr-2" />
                       <span>{dj.rating.toFixed(1)}</span>
@@ -140,11 +124,17 @@ const DiscoverDJsPage: React.FC<DiscoverDJsPageProps> = ({ onNavigate }) => {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-white/10 flex justify-between">
-                    <button className="btn-primary py-2 px-4 text-sm">
-                      View Profile
-                    </button>
-                    <button className="btn-ghost py-2 px-4 text-sm">
+                    <button
+                      className="btn-primary py-2 px-4 text-sm"
+                      onClick={() => navigate('/customer')}
+                    >
                       Request Song
+                    </button>
+                    <button
+                      className="btn-ghost py-2 px-4 text-sm"
+                      onClick={() => navigate('/customer')}
+                    >
+                      View Profile
                     </button>
                   </div>
                 </div>
