@@ -5,7 +5,7 @@ import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
-import { getSpotifyAuthUrl } from '../utils/spotifyAuth';
+import { redirectToSpotifyLogin, exchangeCodeForToken } from '../utils/spotifyAuth';
 import { getUserPlaylists } from '../utils/spotifyApi';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -84,17 +84,20 @@ const CustomerDashboard: React.FC = () => {
     return unsub;
   }, [user]);
 
-  // Extract Spotify implicit grant token from URL hash
+  // Handle Spotify PKCE redirect — exchange code for token
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const token = new URLSearchParams(hash.substring(1)).get('access_token');
-      if (token) {
-        setSpotifyToken(token);
-        window.history.replaceState({}, document.title, window.location.pathname);
-        fetchPlaylists(token);
-      }
-    }
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) return;
+
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    exchangeCodeForToken(code).then((token) => {
+      setSpotifyToken(token);
+      fetchPlaylists(token);
+    }).catch((err) => {
+      console.error('Spotify token exchange failed:', err);
+    });
   }, []);
 
   const fetchPlaylists = async (token: string) => {
@@ -154,7 +157,7 @@ const CustomerDashboard: React.FC = () => {
         <div className="flex justify-end mb-4">
           {!spotifyToken ? (
             <button
-              onClick={() => (window.location.href = getSpotifyAuthUrl())}
+              onClick={() => redirectToSpotifyLogin()}
               className="btn-accent"
             >
               Connect Spotify
