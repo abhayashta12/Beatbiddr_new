@@ -7,31 +7,20 @@ import DJDashboardPage from './pages/DJDashboardPage';
 import WalletPage from './pages/WalletPage';
 import DiscoverDJsPage from './pages/DiscoverDJsPage';
 import LoginPage from './pages/LoginPage';
-import RoleSelectionPage from './pages/RoleSelectionPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
   const { user, role } = useAuth();
 
+  // Redirect logged-in users away from /login to their dashboard
+  const loginRedirect = user
+    ? <Navigate to={role === 'dj' ? '/dj' : role === 'customer' ? '/customer' : '/login'} replace />
+    : <LoginPage />;
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route
-        path="/login"
-        element={
-          user
-            ? role === null
-              ? <Navigate to="/select-role" replace />
-              : <Navigate to={role === 'dj' ? '/dj' : '/customer'} replace />
-            : <LoginPage />
-        }
-      />
-      <Route
-        path="/select-role"
-        element={
-          user ? <RoleSelectionPage /> : <Navigate to="/login" replace />
-        }
-      />
+      <Route path="/login" element={loginRedirect} />
       <Route
         path="/customer"
         element={
@@ -64,6 +53,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

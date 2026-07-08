@@ -11,7 +11,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   const { user, role } = useAuth();
 
   if (!user) return <Navigate to="/login" replace />;
-  if (role === null) return <Navigate to="/select-role" replace />;
+  if (role === null) return <Navigate to="/login" replace />;
   if (requiredRole && role !== requiredRole) {
     return <Navigate to={role === 'dj' ? '/dj' : '/customer'} replace />;
   }
