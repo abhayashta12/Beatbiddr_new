@@ -14,10 +14,12 @@ export type UserRole = 'customer' | 'dj' | null;
 interface AuthContextType {
   user: User | null;
   role: UserRole;
+  djProfileComplete: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   setUserRole: (role: 'customer' | 'dj') => Promise<void>;
+  markDjProfileComplete: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,6 +35,7 @@ const googleProvider = new GoogleAuthProvider();
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>(null);
+  const [djProfileComplete, setDjProfileComplete] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!firebaseUser) {
         setUser(null);
         setRole(null);
+        setDjProfileComplete(false);
         setLoading(false);
         return;
       }
@@ -70,8 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sessionStorage.removeItem('intended_role');
         setUser(firebaseUser);
         setRole(existingRole);
+        setDjProfileComplete(snap.data().djProfileComplete === true);
       } else {
-        // Brand new user — apply the intended role immediately
+        // Brand new user — apply the intended role immediately.
+        // DJs must complete onboarding (username, contact info) before using the app.
         const newRole = intendedRole ?? null;
         sessionStorage.removeItem('intended_role');
 
@@ -80,12 +86,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: firebaseUser.email,
           avatar: firebaseUser.photoURL,
           role: newRole,
+          djProfileComplete: false,
           walletBalance: 0,
           createdAt: new Date().toISOString(),
         });
 
         setUser(firebaseUser);
         setRole(newRole);
+        setDjProfileComplete(false);
       }
 
       setLoading(false);
@@ -111,8 +119,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setRole(newRole);
   };
 
+  const markDjProfileComplete = () => setDjProfileComplete(true);
+
   return (
-    <AuthContext.Provider value={{ user, role, loading, signInWithGoogle, logout, setUserRole }}>
+    <AuthContext.Provider
+      value={{ user, role, djProfileComplete, loading, signInWithGoogle, logout, setUserRole, markDjProfileComplete }}
+    >
       {!loading && children}
     </AuthContext.Provider>
   );

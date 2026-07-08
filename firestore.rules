@@ -7,6 +7,17 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // DJ username reservations — one doc per username, guarantees uniqueness.
+    // Create only succeeds if the doc doesn't already exist (create semantics)
+    // and the claimer writes their own uid. Never updatable or deletable.
+    match /djUsernames/{username} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && username.matches('^[a-z0-9_]{3,20}$');
+      allow update, delete: if false;
+    }
+
     // Song requests: customers create their own, DJs (any authenticated user with role=dj) can update status
     match /songRequests/{requestId} {
       allow read: if request.auth != null;
