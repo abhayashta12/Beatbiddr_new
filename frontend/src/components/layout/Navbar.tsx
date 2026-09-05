@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Music, Wallet, LogIn, Search } from 'lucide-react';
+import { Menu, X, Music, Wallet, LogIn, Search, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, role } = useAuth();
+
+  // Where the Profile button takes the user
+  const profilePath = role === 'dj' ? '/dj' : '/customer';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,15 +27,6 @@ const Navbar: React.FC = () => {
   }, []);
 
   const toggleMenu = () => setIsOpen(!isOpen);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/');
-    } catch (error) {
-      console.error('Failed to log out:', error);
-    }
-  };
 
   const navLinks = [
     { name: 'Home', icon: <Music size={18} />, path: '/' },
@@ -75,13 +68,15 @@ const Navbar: React.FC = () => {
                 </Link>
               ))}
               {user ? (
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-dark-400 transition-all duration-200 flex items-center space-x-2"
+                <Link
+                  to={profilePath}
+                  className={`px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-dark-400 transition-all duration-200 flex items-center space-x-2 ${
+                    location.pathname === profilePath ? 'bg-dark-400 text-white' : ''
+                  }`}
                 >
-                  <LogIn size={18} />
-                  <span>Logout</span>
-                </button>
+                  <User size={18} />
+                  <span>Profile</span>
+                </Link>
               ) : (
                 <Link
                   to="/login"
@@ -134,16 +129,16 @@ const Navbar: React.FC = () => {
                 </Link>
               ))}
               {user ? (
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setIsOpen(false);
-                  }}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-dark-400 w-full text-left transition-all duration-200 flex items-center space-x-3"
+                <Link
+                  to={profilePath}
+                  className={`block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-dark-400 w-full text-left transition-all duration-200 flex items-center space-x-3 ${
+                    location.pathname === profilePath ? 'bg-dark-400 text-white' : ''
+                  }`}
+                  onClick={() => setIsOpen(false)}
                 >
-                  <LogIn size={18} />
-                  <span>Logout</span>
-                </button>
+                  <User size={18} />
+                  <span>Profile</span>
+                </Link>
               ) : (
                 <Link
                   to="/login"

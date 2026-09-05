@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import DJDashboard from '../components/dj/Dashboard';
 import type { SongRequest } from '../types';
 import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 const DJDashboardPage: React.FC = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
   const [pendingRequests, setPendingRequests] = useState<SongRequest[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<SongRequest[]>([]);
   const [earnings, setEarnings] = useState(0);
@@ -40,7 +51,16 @@ const DJDashboardPage: React.FC = () => {
   return (
     <div className="bg-dark-600 min-h-screen">
       <Navbar />
-      <div className="pt-16">
+      <div className="pt-20 px-6 max-w-6xl mx-auto flex justify-end">
+        <button
+          onClick={handleLogout}
+          className="btn-ghost flex items-center text-sm border-red-500/30 text-red-400 hover:bg-red-500/10"
+        >
+          <LogOut size={16} className="mr-2" />
+          Logout
+        </button>
+      </div>
+      <div>
         <DJDashboard
           earnings={earnings}
           totalRequests={totalRequests}

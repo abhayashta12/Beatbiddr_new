@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LogOut } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import WalletCard from '../components/customer/WalletCard';
 import NearbyDJs from '../components/customer/NearbyDJs';
@@ -46,8 +47,13 @@ const mockDJs: DJ[] = [
 ];
 
 const CustomerDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   const [walletBalance, setWalletBalance] = useState(0);
   const [requests, setRequests] = useState<SongRequest[]>([]);
@@ -154,7 +160,7 @@ const CustomerDashboard: React.FC = () => {
     <div className="bg-dark-600 min-h-screen">
       <Navbar />
       <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end items-center gap-3 mb-4">
           {!spotifyToken ? (
             <button
               onClick={() => redirectToSpotifyLogin()}
@@ -165,6 +171,13 @@ const CustomerDashboard: React.FC = () => {
           ) : (
             <p className="text-sm text-green-400 font-medium">Spotify Connected 🎧</p>
           )}
+          <button
+            onClick={handleLogout}
+            className="btn-ghost flex items-center text-sm border-red-500/30 text-red-400 hover:bg-red-500/10"
+          >
+            <LogOut size={16} className="mr-2" />
+            Logout
+          </button>
         </div>
 
         <div className="py-6">
