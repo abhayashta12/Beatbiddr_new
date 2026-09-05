@@ -31,3 +31,6 @@ frontend/.env.*.local
 # Logs
 *.log
 npm-debug.log*
+
+# Internal planning doc — local only
+ROADMAP.md
