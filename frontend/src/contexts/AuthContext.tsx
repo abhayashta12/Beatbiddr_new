@@ -34,6 +34,9 @@ export const useAuth = () => {
 };
 
 const googleProvider = new GoogleAuthProvider();
+// Always show the account chooser — without this, Google silently reuses the
+// last signed-in account, so users can never pick a different one.
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
