@@ -24,11 +24,16 @@ export const adminDb = () => getFirestore(getAdminApp());
  */
 export async function verifyCaller(req: VercelRequest): Promise<string | null> {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) return null;
+  if (!header || !header.startsWith('Bearer ')) {
+    console.error('verifyCaller: missing Authorization header');
+    return null;
+  }
   try {
     const decoded = await adminAuth().verifyIdToken(header.slice(7));
     return decoded.uid;
-  } catch {
+  } catch (err: any) {
+    // Distinguish config problems (bad/missing service account) from bad tokens.
+    console.error('verifyCaller failed:', err.message);
     return null;
   }
 }
