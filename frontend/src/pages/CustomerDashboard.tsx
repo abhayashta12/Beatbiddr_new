@@ -11,16 +11,14 @@ import { getUserPlaylists } from '../utils/spotifyApi';
 import { useAuth } from '../contexts/AuthContext';
 import {
   collection,
-  addDoc,
   onSnapshot,
   query,
   where,
   orderBy,
+  limit,
   doc,
-  updateDoc,
-  arrayUnion,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 
 const mockDJs: DJ[] = [
@@ -61,15 +59,30 @@ const CustomerDashboard: React.FC = () => {
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [userPlaylists, setUserPlaylists] = useState<SpotifyPlaylist[]>([]);
 
-  // Load wallet balance + transactions from Firestore
+  // Wallet balance — written only by the server
   useEffect(() => {
     if (!user) return;
     const ref = doc(db, 'users', user.uid);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         setWalletBalance(snap.data().walletBalance ?? 0);
-        setTransactions(snap.data().transactions ?? []);
       }
+    });
+    return unsub;
+  }, [user]);
+
+  // Recent transactions from the server-written ledger
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'users', user.uid, 'ledger'),
+      orderBy('timestamp', 'desc'),
+      limit(3)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setTransactions(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Transaction, 'id'>) }))
+      );
     });
     return unsub;
   }, [user]);
@@ -118,42 +131,39 @@ const CustomerDashboard: React.FC = () => {
   const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
     if (!user) return;
 
+    // Quick client-side check for UX; the server re-verifies atomically.
     if (walletBalance < tipAmount) {
       alert('Insufficient wallet balance. Please add funds first.');
       navigate('/wallet');
       return;
     }
 
-    const newRequest = {
-      song,
-      requester: {
-        id: user.uid,
-        name: user.displayName ?? 'Anonymous',
-        avatar: user.photoURL ?? '',
-      },
-      tipAmount,
-      message,
-      timestamp: new Date().toISOString(),
-      status: 'pending' as const,
-    };
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not signed in.');
 
-    const newTransaction: Transaction = {
-      id: `t-${Date.now()}`,
-      type: 'tip',
-      amount: tipAmount,
-      timestamp: new Date().toISOString(),
-      recipient: 'DJ Spinz',
-      song,
-    };
+      const res = await fetch('/api/submit-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ song, tipAmount, message }),
+      });
 
-    const userRef = doc(db, 'users', user.uid);
-    await Promise.all([
-      addDoc(collection(db, 'songRequests'), newRequest),
-      updateDoc(userRef, {
-        walletBalance: walletBalance - tipAmount,
-        transactions: arrayUnion(newTransaction),
-      }),
-    ]);
+      if (!res.ok) {
+        const { error } = await res.json();
+        if (res.status === 402) {
+          alert('Insufficient wallet balance. Please add funds first.');
+          navigate('/wallet');
+        } else {
+          alert(error ?? 'Failed to submit request. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('Request submission failed:', err);
+      alert('Failed to submit request. Please try again.');
+    }
   };
 
   return (

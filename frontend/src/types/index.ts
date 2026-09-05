@@ -37,7 +37,9 @@ export interface Transaction {
   amount: number;
   timestamp: string;
   recipient?: string;
-  song?: Song;
+  song?: { title: string; artist: string };
+  paymentIntentId?: string;
+  requestId?: string;
 }
 
 export interface User {

@@ -1,34 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, CreditCard, History, Plus, CheckCircle, RefreshCw } from 'lucide-react';
+import { Wallet, CreditCard, History, CheckCircle, Smartphone } from 'lucide-react';
 import { loadStripe, Stripe, PaymentRequest } from '@stripe/stripe-js';
 import type { Transaction } from '../../types';
+import { auth } from '../../lib/firebase';
 
 interface WalletManagementProps {
   balance: number;
   transactions: Transaction[];
-  onDeposit: (amount: number) => void;
 }
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
 
-const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactions, onDeposit }) => {
+const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactions }) => {
   const [amount, setAmount] = useState(20);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'deposit' | 'history'>('deposit');
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
-  const [canPayNative, setCanPayNative] = useState(false);
+  const [canPayNative, setCanPayNative] = useState<boolean | null>(null);
   const prButtonRef = useRef<HTMLDivElement>(null);
 
   const presetAmounts = [10, 20, 50, 100];
 
   // Build/rebuild the Stripe Payment Request whenever amount changes
   useEffect(() => {
+    let cancelled = false;
     let pr: PaymentRequest | null = null;
 
     stripePromise.then((stripe: Stripe | null) => {
-      if (!stripe) return;
+      if (!stripe || cancelled) return;
 
       pr = stripe.paymentRequest({
         country: 'US',
@@ -39,6 +40,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
       });
 
       pr.canMakePayment().then((result) => {
+        if (cancelled) return;
         if (result) {
           setCanPayNative(true);
           setPaymentRequest(pr);
@@ -49,18 +51,24 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
       });
 
       pr.on('paymentmethod', async (event) => {
-        setIsProcessing(true);
+        setError(null);
         try {
+          const idToken = await auth.currentUser?.getIdToken();
+          if (!idToken) throw new Error('Not signed in.');
+
           const res = await fetch('/api/create-payment-intent', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
             body: JSON.stringify({ amount: amount * 100 }),
           });
           const { clientSecret, error: serverError } = await res.json();
 
-          if (serverError || !stripe) {
+          if (serverError || !clientSecret || !stripe) {
             event.complete('fail');
-            setIsProcessing(false);
+            setError(serverError ?? 'Payment could not be started.');
             return;
           }
 
@@ -70,21 +78,23 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
 
           if (confirmError) {
             event.complete('fail');
+            setError(confirmError.message ?? 'Payment failed.');
           } else {
             event.complete('success');
-            onDeposit(amount);
+            // The Stripe webhook credits the wallet server-side; the balance
+            // snapshot listener will reflect it within a few seconds.
             setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 3000);
+            setTimeout(() => setShowSuccess(false), 6000);
           }
         } catch {
           event.complete('fail');
-        } finally {
-          setIsProcessing(false);
+          setError('Payment failed. Please try again.');
         }
       });
     });
 
     return () => {
+      cancelled = true;
       pr?.off('paymentmethod');
     };
   }, [amount]);
@@ -104,34 +114,6 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
       prButton.mount(prButtonRef.current);
     });
   }, [paymentRequest]);
-
-  const handleCardDeposit = async () => {
-    if (amount <= 0) return;
-    setIsProcessing(true);
-    try {
-      const res = await fetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amount * 100 }),
-      });
-      const { clientSecret } = await res.json();
-
-      const stripe = await stripePromise;
-      if (!stripe || !clientSecret) throw new Error('Stripe unavailable');
-
-      // Redirect to Stripe Checkout for card payments as fallback
-      // For MVP: just simulate success (Stripe requires card element for inline flow)
-      // TODO: mount a Stripe CardElement for full card support
-      onDeposit(amount);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    } catch (err) {
-      console.error('Payment error:', err);
-      alert('Payment failed. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -186,99 +168,88 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
         {/* Deposit Tab */}
         {activeTab === 'deposit' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-            {showSuccess ? (
+            {showSuccess && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center p-6 glass-card mb-6"
               >
                 <CheckCircle size={40} className="text-neon-500 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold mb-1">Deposit Successful!</h3>
-                <p className="text-gray-400">${amount.toFixed(2)} has been added to your wallet.</p>
+                <h3 className="text-lg font-semibold mb-1">Payment Received!</h3>
+                <p className="text-gray-400">
+                  ${amount.toFixed(2)} will appear in your balance within a few seconds.
+                </p>
               </motion.div>
-            ) : (
-              <>
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Enter Amount</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-400">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      className="input pl-8 w-full"
-                      value={amount}
-                      onChange={(e) => setAmount(Math.max(1, Number(e.target.value)))}
-                    />
-                  </div>
+            )}
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Enter Amount</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-400">$</span>
                 </div>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  className="input pl-8 w-full"
+                  value={amount}
+                  onChange={(e) => setAmount(Math.min(1000, Math.max(1, Number(e.target.value))))}
+                />
+              </div>
+            </div>
 
-                <div className="grid grid-cols-4 gap-3 mb-8">
-                  {presetAmounts.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setAmount(preset)}
-                      className={`py-2 rounded-md transition-all duration-200 ${
-                        amount === preset
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-dark-300 text-gray-300 hover:bg-dark-200'
-                      }`}
-                    >
-                      ${preset}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="glass-card p-4 mb-6">
-                  <div className="flex justify-between mb-3">
-                    <span className="text-gray-400">Amount</span>
-                    <span>${amount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between mb-3">
-                    <span className="text-gray-400">Service Fee</span>
-                    <span>$0.00</span>
-                  </div>
-                  <div className="flex justify-between pt-3 border-t border-white/10">
-                    <span className="font-medium">Total</span>
-                    <span className="font-medium">${amount.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Apple Pay / Google Pay button */}
-                {canPayNative && (
-                  <div className="mb-4">
-                    <div ref={prButtonRef} />
-                    <div className="flex items-center my-4">
-                      <div className="flex-1 border-t border-white/10"></div>
-                      <span className="px-3 text-sm text-gray-500">or pay with card</span>
-                      <div className="flex-1 border-t border-white/10"></div>
-                    </div>
-                  </div>
-                )}
-
+            <div className="grid grid-cols-4 gap-3 mb-8">
+              {presetAmounts.map((preset) => (
                 <button
-                  onClick={handleCardDeposit}
-                  disabled={amount <= 0 || isProcessing}
-                  className={`w-full btn-primary flex items-center justify-center ${
-                    amount <= 0 || isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+                  key={preset}
+                  type="button"
+                  onClick={() => setAmount(preset)}
+                  className={`py-2 rounded-md transition-all duration-200 ${
+                    amount === preset
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-dark-300 text-gray-300 hover:bg-dark-200'
                   }`}
                 >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw size={18} className="animate-spin mr-2" />
-                      Processing…
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={18} className="mr-2" />
-                      Add ${amount.toFixed(2)} to Wallet
-                    </>
-                  )}
+                  ${preset}
                 </button>
-              </>
+              ))}
+            </div>
+
+            <div className="glass-card p-4 mb-6">
+              <div className="flex justify-between mb-3">
+                <span className="text-gray-400">Amount</span>
+                <span>${amount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between mb-3">
+                <span className="text-gray-400">Service Fee</span>
+                <span>$0.00</span>
+              </div>
+              <div className="flex justify-between pt-3 border-t border-white/10">
+                <span className="font-medium">Total</span>
+                <span className="font-medium">${amount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Apple Pay / Google Pay — the only deposit method */}
+            {canPayNative && <div ref={prButtonRef} />}
+
+            {canPayNative === false && (
+              <div className="text-center p-6 glass-card">
+                <Smartphone size={32} className="mx-auto text-gray-500 mb-3" />
+                <p className="text-gray-300 font-medium mb-1">Apple Pay / Google Pay not available</p>
+                <p className="text-sm text-gray-500">
+                  Open BeatBiddr in Safari on iPhone/Mac (Apple Pay) or Chrome with a saved card
+                  (Google Pay) to add funds.
+                </p>
+              </div>
             )}
           </motion.div>
         )}
@@ -317,7 +288,9 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
                             ? 'Deposit'
                             : transaction.type === 'withdrawal'
                             ? 'Withdrawal'
-                            : `Tip to ${transaction.recipient}`}
+                            : transaction.song
+                            ? `Tip — ${transaction.song.title}`
+                            : 'Tip'}
                         </p>
                         <p className="text-xs text-gray-400">
                           {new Date(transaction.timestamp).toLocaleString()}
