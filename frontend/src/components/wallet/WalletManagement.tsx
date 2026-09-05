@@ -14,6 +14,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as 
 
 const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactions }) => {
   const [amount, setAmount] = useState(20);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'deposit' | 'history'>('deposit');
@@ -52,6 +53,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
 
       pr.on('paymentmethod', async (event) => {
         setError(null);
+        setIsProcessing(true);
         try {
           const idToken = await auth.currentUser?.getIdToken();
           if (!idToken) throw new Error('Not signed in.');
@@ -89,6 +91,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
         } catch {
           event.complete('fail');
           setError('Payment failed. Please try again.');
+        } finally {
+          setIsProcessing(false);
         }
       });
     });
@@ -239,7 +243,17 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
             </div>
 
             {/* Apple Pay / Google Pay — the only deposit method */}
-            {canPayNative && <div ref={prButtonRef} />}
+            {isProcessing && (
+              <div className="flex items-center justify-center mb-4 text-sm text-gray-300">
+                <div className="w-4 h-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin mr-2" />
+                Processing payment…
+              </div>
+            )}
+            {canPayNative && (
+              <div className={isProcessing ? 'opacity-50 pointer-events-none' : ''}>
+                <div ref={prButtonRef} />
+              </div>
+            )}
 
             {canPayNative === false && (
               <div className="text-center p-6 glass-card">
