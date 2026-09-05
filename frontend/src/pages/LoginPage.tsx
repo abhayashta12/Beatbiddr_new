@@ -7,14 +7,18 @@ import Navbar from '../components/layout/Navbar';
 type IntendedRole = 'customer' | 'dj' | null;
 
 const LoginPage: React.FC = () => {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, authError, clearAuthError } = useAuth();
   const [intendedRole, setIntendedRole] = useState<IntendedRole>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Role conflicts surface via AuthContext (works for both popup and redirect flows)
+  const error = authError ?? localError;
 
   const handleGoogleSignIn = async () => {
     if (!intendedRole) return;
-    setError(null);
+    setLocalError(null);
+    clearAuthError();
     setLoading(true);
 
     sessionStorage.setItem('intended_role', intendedRole);
@@ -22,16 +26,12 @@ const LoginPage: React.FC = () => {
     try {
       await signInWithGoogle();
       // AuthContext handles role assignment and conflict detection.
-      // Redirect happens in App.tsx based on role state.
+      // Redirect happens in App.tsx based on role state. On mobile this
+      // navigates away to Google and back.
     } catch (err: any) {
       sessionStorage.removeItem('intended_role');
-      if (err.code === 'auth/popup-blocked') {
-        setError('Please enable popups for this site to sign in with Google.');
-      } else if (err.code === 'role_conflict') {
-        setError(err.message);
-      } else {
-        setError('Failed to sign in. Please try again.');
-      }
+      console.error('Sign-in failed:', err);
+      setLocalError('Failed to sign in. Please try again.');
     } finally {
       setLoading(false);
     }

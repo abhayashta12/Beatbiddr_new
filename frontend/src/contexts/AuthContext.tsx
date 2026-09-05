@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
@@ -16,6 +17,8 @@ interface AuthContextType {
   role: UserRole;
   djProfileComplete: boolean;
   loading: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   setUserRole: (role: 'customer' | 'dj') => Promise<void>;
@@ -37,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole>(null);
   const [djProfileComplete, setDjProfileComplete] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -55,7 +59,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (snap.exists()) {
         const existingRole = (snap.data().role as UserRole) ?? null;
 
-        // Conflict: user already has a role and tried to sign up as a different one
+        // Conflict: user already has a role and tried to sign up as a different one.
+        // Surface it via state — a throw here is unhandled (listener context) and
+        // with the mobile redirect flow there is no caller to catch it anyway.
         if (intendedRole && existingRole && intendedRole !== existingRole) {
           sessionStorage.removeItem('intended_role');
           await signOut(auth);
@@ -63,12 +69,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setRole(null);
           setLoading(false);
           const roleLabel = existingRole === 'dj' ? 'DJ / Artist' : 'Music Fan';
-          const err = new Error(
+          setAuthError(
             `This Google account is already registered as a ${roleLabel}. ` +
             `To create a different type of account, delete your current profile first.`
           );
-          (err as any).code = 'role_conflict';
-          throw err;
+          return;
         }
 
         sessionStorage.removeItem('intended_role');
@@ -103,8 +108,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider);
+    setAuthError(null);
+    // Popups are unreliable on mobile browsers (blocked or orphaned, leaving the
+    // button spinning forever) — use the full-page redirect flow there instead.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      if (err.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      throw err;
+    }
   };
+
+  const clearAuthError = () => setAuthError(null);
 
   const logout = async () => {
     await signOut(auth);
@@ -123,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ user, role, djProfileComplete, loading, signInWithGoogle, logout, setUserRole, markDjProfileComplete }}
+      value={{ user, role, djProfileComplete, loading, authError, clearAuthError, signInWithGoogle, logout, setUserRole, markDjProfileComplete }}
     >
       {!loading && children}
     </AuthContext.Provider>
