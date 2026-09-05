@@ -48,6 +48,26 @@ export const redirectToSpotifyLogin = async (): Promise<void> => {
   window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
 };
 
+const TOKEN_STORAGE_KEY = 'spotify_token';
+
+interface StoredSpotifyToken {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number; // epoch ms
+}
+
+const saveToken = (data: { access_token: string; refresh_token?: string; expires_in: number }) => {
+  const stored: StoredSpotifyToken = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    // Refresh 60s before actual expiry to avoid using a stale token mid-request
+    expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+  };
+  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(stored));
+};
+
+export const clearSpotifyToken = () => localStorage.removeItem(TOKEN_STORAGE_KEY);
+
 export const exchangeCodeForToken = async (code: string): Promise<string> => {
   const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const redirectUri = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
@@ -73,5 +93,50 @@ export const exchangeCodeForToken = async (code: string): Promise<string> => {
 
   const data = await res.json();
   sessionStorage.removeItem('spotify_code_verifier');
+  saveToken(data);
   return data.access_token as string;
+};
+
+const refreshAccessToken = async (refreshToken: string): Promise<string | null> => {
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
+  const body = new URLSearchParams({
+    client_id: clientId,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
+
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  // Spotify may or may not rotate the refresh token; keep the old one if not.
+  saveToken({ ...data, refresh_token: data.refresh_token ?? refreshToken });
+  return data.access_token as string;
+};
+
+/**
+ * Returns a valid access token from storage, refreshing it silently if expired.
+ * Returns null if the user has never connected (or the refresh failed).
+ */
+export const getValidSpotifyToken = async (): Promise<string | null> => {
+  const raw = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const stored: StoredSpotifyToken = JSON.parse(raw);
+    if (Date.now() < stored.expiresAt) return stored.accessToken;
+    if (stored.refreshToken) {
+      const refreshed = await refreshAccessToken(stored.refreshToken);
+      if (refreshed) return refreshed;
+    }
+  } catch {
+    // fall through to clear
+  }
+  clearSpotifyToken();
+  return null;
 };

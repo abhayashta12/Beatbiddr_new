@@ -6,7 +6,7 @@ import NearbyDJs from '../components/customer/NearbyDJs';
 import SongCard from '../components/customer/SongCard';
 import RequestForm from '../components/customer/RequestForm';
 import type { DJ, SongRequest, Transaction, Song, SpotifyPlaylist } from '../types';
-import { redirectToSpotifyLogin, exchangeCodeForToken } from '../utils/spotifyAuth';
+import { redirectToSpotifyLogin, exchangeCodeForToken, getValidSpotifyToken } from '../utils/spotifyAuth';
 import { getUserPlaylists } from '../utils/spotifyApi';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -20,6 +20,12 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
+
+const SpotifyLogo: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.5 17.3c-.22.36-.68.47-1.04.26-2.85-1.74-6.44-2.14-10.66-1.17-.41.09-.82-.17-.91-.58-.1-.41.16-.82.58-.91 4.62-1.06 8.59-.6 11.77 1.35.36.22.47.69.26 1.05zm1.47-3.27c-.27.44-.85.58-1.29.31-3.26-2-8.23-2.59-12.09-1.42-.5.15-1.02-.13-1.17-.62-.15-.5.13-1.02.63-1.17 4.41-1.34 9.88-.69 13.62 1.61.43.27.57.85.3 1.29zm.13-3.4C15.24 8.3 8.82 8.09 5.09 9.22c-.6.18-1.23-.16-1.41-.75-.18-.6.16-1.23.75-1.41 4.29-1.3 11.4-1.05 15.9 1.62.54.32.71 1.02.4 1.55-.32.53-1.02.71-1.55.4z"/>
+  </svg>
+);
 
 const mockDJs: DJ[] = [
   {
@@ -103,19 +109,28 @@ const CustomerDashboard: React.FC = () => {
     return unsub;
   }, [user]);
 
-  // Handle Spotify PKCE redirect — exchange code for token
+  // Spotify connection: handle the PKCE redirect if present, otherwise
+  // restore the stored token (refreshing silently if it expired).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    if (!code) return;
 
-    window.history.replaceState({}, document.title, window.location.pathname);
+    if (code) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      exchangeCodeForToken(code).then((token) => {
+        setSpotifyToken(token);
+        fetchPlaylists(token);
+      }).catch((err) => {
+        console.error('Spotify token exchange failed:', err);
+      });
+      return;
+    }
 
-    exchangeCodeForToken(code).then((token) => {
-      setSpotifyToken(token);
-      fetchPlaylists(token);
-    }).catch((err) => {
-      console.error('Spotify token exchange failed:', err);
+    getValidSpotifyToken().then((token) => {
+      if (token) {
+        setSpotifyToken(token);
+        fetchPlaylists(token);
+      }
     });
   }, []);
 
@@ -174,12 +189,17 @@ const CustomerDashboard: React.FC = () => {
           {!spotifyToken ? (
             <button
               onClick={() => redirectToSpotifyLogin()}
-              className="btn-accent"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm text-black bg-[#1DB954] hover:bg-[#1ed760] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#1DB954]/25"
             >
+              <SpotifyLogo />
               Connect Spotify
             </button>
           ) : (
-            <p className="text-sm text-green-400 font-medium">Spotify Connected 🎧</p>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#1DB954] bg-[#1DB954]/10 border border-[#1DB954]/30">
+              <SpotifyLogo />
+              Spotify Connected
+              <span className="w-2 h-2 rounded-full bg-[#1DB954] animate-pulse" />
+            </div>
           )}
           <button
             onClick={handleLogout}
