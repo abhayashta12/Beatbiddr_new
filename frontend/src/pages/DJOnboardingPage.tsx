@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Headphones, AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/layout/Navbar';
 
@@ -58,42 +58,39 @@ const DJOnboardingPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      // Re-check availability right before claiming
-      const available = await checkUsername();
-      if (!available) {
-        setError(`Username "${normalizedUsername}" is already taken. Please choose another.`);
-        setSubmitting(false);
-        return;
-      }
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not signed in.');
 
-      // Atomic claim: username reservation + profile update in one batch.
-      // Firestore rules reject the batch if the username doc already exists,
-      // so two simultaneous claims can never both succeed.
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'djUsernames', normalizedUsername), {
-        uid: user.uid,
-        claimedAt: new Date().toISOString(),
-      });
-      batch.update(doc(db, 'users', user.uid), {
-        djProfile: {
+      // The server validates every field and claims the username in one atomic
+      // transaction, so two people can never take the same name.
+      const res = await fetch('/api/complete-dj-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
           username: normalizedUsername,
           stageName: stageName.trim(),
           legalName: legalName.trim(),
           phone: phone.trim(),
           address: address.trim(),
           club: club.trim(),
-          email: user.email,
-          verified: false,
-        },
-        djProfileComplete: true,
+        }),
       });
-      await batch.commit();
+
+      if (!res.ok) {
+        const { error: serverError } = await res.json().catch(() => ({ error: null }));
+        setError(serverError ?? 'Could not save your profile. Please try again.');
+        if (res.status === 409) setUsernameStatus('taken');
+        return;
+      }
 
       markDjProfileComplete();
       navigate('/dj', { replace: true });
     } catch (err) {
       console.error('DJ onboarding failed:', err);
-      setError('Something went wrong saving your profile. Please try again.');
+      setError('Could not reach the server. Check your connection and try again.');
     } finally {
       setSubmitting(false);
     }

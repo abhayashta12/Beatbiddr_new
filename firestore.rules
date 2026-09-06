@@ -21,32 +21,20 @@ service cloud.firestore {
         && request.resource.data.djProfileComplete == false
         && !('transactions' in request.resource.data);
 
-      // Profile edits only. Money fields are server-only (Admin SDK bypasses rules).
-      // - walletBalance / transactions: never client-writable
+      // Profile edits only. Money and DJ-identity fields are server-only
+      // (Admin SDK bypasses rules):
+      // - walletBalance / transactions: written by the Stripe webhook and
+      //   /api/submit-request
+      // - djProfile / djProfileComplete: written by /api/complete-dj-profile,
+      //   which validates the identity data and claims the username atomically
       // - role: write-once (only settable while null)
-      // - djProfileComplete: may only flip false -> true in the same batch that
-      //   claims the matching djUsernames reservation (getAfter sees post-batch state)
-      // - djProfile.username: immutable once set
       allow update: if isSignedIn()
         && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny(['walletBalance', 'transactions'])
+             .hasAny(['walletBalance', 'transactions', 'djProfile', 'djProfileComplete'])
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
           || resource.data.role == null
-        )
-        && (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['djProfileComplete'])
-          || (
-            request.resource.data.djProfileComplete == true
-            && resource.data.djProfileComplete == false
-            && getAfter(/databases/$(database)/documents/djUsernames/$(request.resource.data.djProfile.username)).data.uid == request.auth.uid
-          )
-        )
-        && (
-          !('djProfile' in resource.data)
-          || resource.data.djProfile == null
-          || request.resource.data.djProfile.username == resource.data.djProfile.username
         );
 
       allow delete: if false;
@@ -58,13 +46,12 @@ service cloud.firestore {
       }
     }
 
-    // DJ username reservations — create-once, own uid, validated format. Immutable.
+    // DJ username reservations. Readable so the signup form can show live
+    // availability; claimed only by /api/complete-dj-profile, which reserves the
+    // name and writes the profile in one atomic transaction.
     match /djUsernames/{username} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && username.matches('^[a-z0-9_]{3,20}$');
-      allow update, delete: if false;
+      allow write: if false;
     }
 
     // Song requests are created server-side only (atomic debit via /api/submit-request).
