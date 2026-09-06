@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -7,7 +7,7 @@ import {
   signOut,
   User,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
 export type UserRole = 'customer' | 'dj' | null;
@@ -63,16 +63,85 @@ const readIntendedRole = (): UserRole => {
 
 const clearIntendedRole = () => localStorage.removeItem(INTENDED_ROLE_KEY);
 
+interface BootstrapResult {
+  role: UserRole;
+  djProfileComplete: boolean;
+  /** Set when the account already holds a different role than the one requested. */
+  conflictWith?: 'customer' | 'dj';
+}
+
+/**
+ * Resolves a signed-in user's account state in a single atomic transaction.
+ *
+ * onAuthStateChanged can fire more than once for one sign-in (sign-in event,
+ * token refresh, a second tab observing the shared auth state). Doing a
+ * read-then-write outside a transaction let two invocations interleave, and a
+ * plain setDoc from the loser overwrote the winner's role with null. Firestore
+ * retries this transaction on contention, so the second run observes the
+ * document the first one created and takes the "already exists" path instead.
+ *
+ * Invariant: a non-null role is never overwritten, and null is never written
+ * over an existing role.
+ */
+const bootstrapUser = async (
+  firebaseUser: User,
+  intendedRole: UserRole
+): Promise<BootstrapResult> => {
+  const userRef = doc(db, 'users', firebaseUser.uid);
+
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+
+    if (!snap.exists()) {
+      const newRole = intendedRole ?? null;
+      tx.set(userRef, {
+        name: firebaseUser.displayName,
+        email: firebaseUser.email,
+        avatar: firebaseUser.photoURL,
+        role: newRole,
+        djProfileComplete: false,
+        walletBalance: 0,
+        createdAt: new Date().toISOString(),
+      });
+      return { role: newRole, djProfileComplete: false };
+    }
+
+    const data = snap.data();
+    const existingRole = (data.role as UserRole) ?? null;
+    const djProfileComplete = data.djProfileComplete === true;
+
+    if (existingRole) {
+      return {
+        role: existingRole,
+        djProfileComplete,
+        conflictWith:
+          intendedRole && intendedRole !== existingRole ? existingRole : undefined,
+      };
+    }
+
+    // Account exists without a role (a signup that never finished). Complete it
+    // rather than leaving the user stranded on the login screen.
+    if (intendedRole) {
+      tx.update(userRef, { role: intendedRole });
+      return { role: intendedRole, djProfileComplete };
+    }
+
+    return { role: null, djProfileComplete };
+  });
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [djProfileComplete, setDjProfileComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const bootstrappingUid = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
+        bootstrappingUid.current = null;
         setUser(null);
         setRole(null);
         setDjProfileComplete(false);
@@ -80,24 +149,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const snap = await getDoc(userRef);
-      const intendedRole = readIntendedRole();
+      // A duplicate event for the same user must not start a second bootstrap.
+      if (bootstrappingUid.current === firebaseUser.uid) return;
+      bootstrappingUid.current = firebaseUser.uid;
 
-      if (snap.exists()) {
-        const existingRole = (snap.data().role as UserRole) ?? null;
-        const profileComplete = snap.data().djProfileComplete === true;
+      try {
+        const intendedRole = readIntendedRole();
+        const result = await bootstrapUser(firebaseUser, intendedRole);
 
-        // Conflict: user already has a role and tried to sign up as a different one.
-        // Surface it via state — a throw here is unhandled (listener context) and
-        // with the mobile redirect flow there is no caller to catch it anyway.
-        if (intendedRole && existingRole && intendedRole !== existingRole) {
-          clearIntendedRole();
+        // Only now is the choice durably recorded — clearing any earlier would
+        // lose it if the write failed or a concurrent event was still reading it.
+        clearIntendedRole();
+
+        if (result.conflictWith) {
           await signOut(auth);
           setUser(null);
           setRole(null);
-          setLoading(false);
-          const roleLabel = existingRole === 'dj' ? 'DJ / Artist' : 'Music Fan';
+          setDjProfileComplete(false);
+          const roleLabel = result.conflictWith === 'dj' ? 'DJ / Artist' : 'Music Fan';
           setAuthError(
             `This Google account is already registered as a ${roleLabel}. ` +
             `To create a different type of account, delete your current profile first.`
@@ -105,45 +174,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Account exists but never got a role (signup interrupted, or the picked
-        // role was lost across the sign-in redirect). Apply it now instead of
-        // leaving the user stranded on the login screen forever.
-        if (intendedRole && !existingRole) {
-          clearIntendedRole();
-          await updateDoc(userRef, { role: intendedRole });
-          setUser(firebaseUser);
-          setRole(intendedRole);
-          setDjProfileComplete(profileComplete);
-          setLoading(false);
-          return;
-        }
-
-        clearIntendedRole();
         setUser(firebaseUser);
-        setRole(existingRole);
-        setDjProfileComplete(profileComplete);
-      } else {
-        // Brand new user — apply the intended role immediately.
-        // DJs must complete onboarding (username, contact info) before using the app.
-        const newRole = intendedRole ?? null;
-        clearIntendedRole();
-
-        await setDoc(userRef, {
-          name: firebaseUser.displayName,
-          email: firebaseUser.email,
-          avatar: firebaseUser.photoURL,
-          role: newRole,
-          djProfileComplete: false,
-          walletBalance: 0,
-          createdAt: new Date().toISOString(),
-        });
-
+        setRole(result.role);
+        setDjProfileComplete(result.djProfileComplete);
+      } catch (err) {
+        console.error('Failed to load account:', err);
+        // Leave the stored role intact so the next attempt can still apply it.
         setUser(firebaseUser);
-        setRole(newRole);
-        setDjProfileComplete(false);
+        setAuthError('Could not load your account. Please refresh and try again.');
+      } finally {
+        bootstrappingUid.current = null;
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return unsubscribe;
