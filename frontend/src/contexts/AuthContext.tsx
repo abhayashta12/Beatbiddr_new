@@ -38,6 +38,31 @@ const googleProvider = new GoogleAuthProvider();
 // last signed-in account, so users can never pick a different one.
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+// The role a user picked before signing in must survive the full-page redirect
+// to Google and back. sessionStorage is dropped by iOS Safari and in-app
+// browsers during that hop, so use localStorage with a short expiry instead
+// (an abandoned signup must not trigger a false role conflict days later).
+const INTENDED_ROLE_KEY = 'beatbiddr_intended_role';
+const INTENDED_ROLE_TTL_MS = 15 * 60 * 1000;
+
+export const storeIntendedRole = (role: 'customer' | 'dj') => {
+  localStorage.setItem(INTENDED_ROLE_KEY, JSON.stringify({ role, ts: Date.now() }));
+};
+
+const readIntendedRole = (): UserRole => {
+  const raw = localStorage.getItem(INTENDED_ROLE_KEY);
+  if (!raw) return null;
+  try {
+    const { role, ts } = JSON.parse(raw);
+    if (Date.now() - ts > INTENDED_ROLE_TTL_MS) return null;
+    return role as UserRole;
+  } catch {
+    return null;
+  }
+};
+
+const clearIntendedRole = () => localStorage.removeItem(INTENDED_ROLE_KEY);
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>(null);
@@ -57,16 +82,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const userRef = doc(db, 'users', firebaseUser.uid);
       const snap = await getDoc(userRef);
-      const intendedRole = sessionStorage.getItem('intended_role') as UserRole;
+      const intendedRole = readIntendedRole();
 
       if (snap.exists()) {
         const existingRole = (snap.data().role as UserRole) ?? null;
+        const profileComplete = snap.data().djProfileComplete === true;
 
         // Conflict: user already has a role and tried to sign up as a different one.
         // Surface it via state — a throw here is unhandled (listener context) and
         // with the mobile redirect flow there is no caller to catch it anyway.
         if (intendedRole && existingRole && intendedRole !== existingRole) {
-          sessionStorage.removeItem('intended_role');
+          clearIntendedRole();
           await signOut(auth);
           setUser(null);
           setRole(null);
@@ -79,15 +105,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        sessionStorage.removeItem('intended_role');
+        // Account exists but never got a role (signup interrupted, or the picked
+        // role was lost across the sign-in redirect). Apply it now instead of
+        // leaving the user stranded on the login screen forever.
+        if (intendedRole && !existingRole) {
+          clearIntendedRole();
+          await updateDoc(userRef, { role: intendedRole });
+          setUser(firebaseUser);
+          setRole(intendedRole);
+          setDjProfileComplete(profileComplete);
+          setLoading(false);
+          return;
+        }
+
+        clearIntendedRole();
         setUser(firebaseUser);
         setRole(existingRole);
-        setDjProfileComplete(snap.data().djProfileComplete === true);
+        setDjProfileComplete(profileComplete);
       } else {
         // Brand new user — apply the intended role immediately.
         // DJs must complete onboarding (username, contact info) before using the app.
         const newRole = intendedRole ?? null;
-        sessionStorage.removeItem('intended_role');
+        clearIntendedRole();
 
         await setDoc(userRef, {
           name: firebaseUser.displayName,

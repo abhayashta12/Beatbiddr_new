@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Music, Headphones, AlertCircle, LogIn } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, storeIntendedRole } from '../contexts/AuthContext';
 import Navbar from '../components/layout/Navbar';
 
 type IntendedRole = 'customer' | 'dj' | null;
 
 const LoginPage: React.FC = () => {
-  const { signInWithGoogle, authError, clearAuthError } = useAuth();
+  const { user, role, signInWithGoogle, setUserRole, authError, clearAuthError } = useAuth();
   const [intendedRole, setIntendedRole] = useState<IntendedRole>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,23 +15,34 @@ const LoginPage: React.FC = () => {
   // Role conflicts surface via AuthContext (works for both popup and redirect flows)
   const error = authError ?? localError;
 
-  const handleGoogleSignIn = async () => {
+  // Already signed in but with no role — signup was interrupted, or the picked
+  // role was lost across the redirect. Assign it directly, no Google round-trip.
+  const needsRoleOnly = Boolean(user) && role === null;
+
+  const handleContinue = async () => {
     if (!intendedRole) return;
     setLocalError(null);
     clearAuthError();
     setLoading(true);
 
-    sessionStorage.setItem('intended_role', intendedRole);
-
     try {
+      if (needsRoleOnly) {
+        await setUserRole(intendedRole);
+        return; // App.tsx redirects once role state updates
+      }
+
+      storeIntendedRole(intendedRole);
       await signInWithGoogle();
       // AuthContext handles role assignment and conflict detection.
       // Redirect happens in App.tsx based on role state. On mobile this
       // navigates away to Google and back.
     } catch (err: any) {
-      sessionStorage.removeItem('intended_role');
       console.error('Sign-in failed:', err);
-      setLocalError('Failed to sign in. Please try again.');
+      setLocalError(
+        needsRoleOnly
+          ? 'Could not save your role. Please try again.'
+          : 'Failed to sign in. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -53,8 +64,16 @@ const LoginPage: React.FC = () => {
                 <Music size={40} className="text-primary-400" />
               </div>
             </div>
-            <h2 className="text-3xl font-bold mb-2">Welcome to BeatBiddr</h2>
-            <p className="text-gray-400">How will you be using BeatBiddr?</p>
+            <h2 className="text-3xl font-bold mb-2">
+              {needsRoleOnly
+                ? `Almost there${user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}!`
+                : 'Welcome to BeatBiddr'}
+            </h2>
+            <p className="text-gray-400">
+              {needsRoleOnly
+                ? 'Just pick how you want to use BeatBiddr to finish setting up.'
+                : 'How will you be using BeatBiddr?'}
+            </p>
           </div>
 
           {/* Role cards */}
@@ -116,7 +135,7 @@ const LoginPage: React.FC = () => {
 
           {/* Sign in button — only active after role is chosen */}
           <button
-            onClick={handleGoogleSignIn}
+            onClick={handleContinue}
             disabled={!intendedRole || loading}
             className="w-full btn-primary flex items-center justify-center space-x-3 disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -127,10 +146,14 @@ const LoginPage: React.FC = () => {
             )}
             <span>
               {loading
-                ? 'Signing in…'
-                : intendedRole
-                ? `Continue as ${intendedRole === 'dj' ? 'DJ / Artist' : 'Music Fan'} with Google`
-                : 'Select a role above to continue'}
+                ? needsRoleOnly
+                  ? 'Setting up…'
+                  : 'Signing in…'
+                : !intendedRole
+                ? 'Select a role above to continue'
+                : needsRoleOnly
+                ? `Continue as ${intendedRole === 'dj' ? 'DJ / Artist' : 'Music Fan'}`
+                : `Continue as ${intendedRole === 'dj' ? 'DJ / Artist' : 'Music Fan'} with Google`}
             </span>
           </button>
 
