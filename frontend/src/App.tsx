@@ -1,14 +1,24 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Home from './pages/Home';
-import CustomerDashboard from './pages/CustomerDashboard';
-import DJDashboardPage from './pages/DJDashboardPage';
-import WalletPage from './pages/WalletPage';
-import DiscoverDJsPage from './pages/DiscoverDJsPage';
-import LoginPage from './pages/LoginPage';
-import DJOnboardingPage from './pages/DJOnboardingPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import UpdateBanner from './components/layout/UpdateBanner';
+
+// Each route is its own chunk, so opening /login no longer downloads the
+// Stripe wallet, the DJ dashboard, or the landing page's 3D scene.
+const Home = lazy(() => import('./pages/Home'));
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
+const DJDashboardPage = lazy(() => import('./pages/DJDashboardPage'));
+const WalletPage = lazy(() => import('./pages/WalletPage'));
+const DiscoverDJsPage = lazy(() => import('./pages/DiscoverDJsPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DJOnboardingPage = lazy(() => import('./pages/DJOnboardingPage'));
+
+const RouteFallback = () => (
+  <div className="min-h-screen bg-dark-600 flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 function AppRoutes() {
   const { user, role, djProfileComplete } = useAuth();
@@ -24,6 +34,7 @@ function AppRoutes() {
     : <LoginPage />;
 
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={loginRedirect} />
@@ -72,6 +83,7 @@ function AppRoutes() {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

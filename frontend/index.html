@@ -4,13 +4,56 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#121212" />
     <title>BeatBiddr | Request Songs & Tip DJs</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Warm up the connections the app makes immediately on load, so DNS and
+         TLS aren't serialised after the JS parses. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+
+    <!-- Loaded without blocking the first paint: the print media type makes the
+         browser fetch it at low priority, then it is promoted once ready.
+         font-display=swap means text shows in the fallback face meanwhile. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      />
+    </noscript>
+
+    <!-- Paints the app's background and a spinner before any JavaScript runs,
+         so a slow connection shows something alive instead of a blank screen.
+         React replaces this the moment it mounts. -->
+    <style>
+      html, body { margin: 0; background: #121212; }
+      #root { min-height: 100vh; }
+      .boot {
+        position: fixed; inset: 0; display: flex; align-items: center;
+        justify-content: center; background: #121212;
+      }
+      .boot i {
+        width: 32px; height: 32px; border-radius: 50%; display: block;
+        border: 2px solid #8B5CF6; border-top-color: transparent;
+        animation: boot-spin .7s linear infinite;
+      }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot i { animation-duration: 2s; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot"><i></i></div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

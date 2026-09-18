@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Music } from 'lucide-react';
-import ThreeAnimation from './ThreeAnimation';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCanRender3D } from '../../hooks/useCanRender3D';
+
+// Pulled into its own chunk so three.js (~900 KB) is never part of the initial
+// download — phones and every non-landing route skip it entirely.
+const ThreeAnimation = lazy(() => import('./ThreeAnimation'));
 
 const Hero: React.FC = () => {
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const canRender3D = useCanRender3D();
 
   const handleGetStarted = () => {
     if (!user) return navigate('/login');
@@ -31,9 +36,13 @@ const Hero: React.FC = () => {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-600 z-0"></div>
-      <div className="absolute inset-0 z-0 opacity-50">
-        <ThreeAnimation />
-      </div>
+      {canRender3D && (
+        <div className="absolute inset-0 z-0 opacity-50">
+          <Suspense fallback={null}>
+            <ThreeAnimation />
+          </Suspense>
+        </div>
+      )}
 
       <div className="container mx-auto px-4 z-10 text-center relative">
         <motion.div

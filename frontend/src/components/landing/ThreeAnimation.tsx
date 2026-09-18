@@ -14,8 +14,10 @@ const AnimatedSphere = () => {
     }
   });
 
+  // 100x200 segments was ~40,000 triangles for a blurred background blob.
+  // 48x32 is visually identical once distorted and costs a fraction of the GPU.
   return (
-    <Sphere ref={sphere} args={[1, 100, 200]} scale={2.5}>
+    <Sphere ref={sphere} args={[1, 48, 32]} scale={2.5}>
       <MeshDistortMaterial
         color="#8B5CF6"
         attach="material"
@@ -74,7 +76,9 @@ const ThreeAnimation: React.FC = () => {
       transition={{ duration: 1 }}
       className="absolute inset-0 z-0"
     >
-      <Canvas camera={{ position: [0, 0, 6], fov: 50 }}>
+      {/* Cap the pixel ratio — retina displays otherwise render 4x the pixels
+          for a background element nobody inspects closely. */}
+      <Canvas camera={{ position: [0, 0, 6], fov: 50 }} dpr={[1, 1.5]}>
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 10, 5]} intensity={1} color="#3B82F6" />
         <directionalLight position={[-10, -10, -5]} intensity={0.5} color="#8B5CF6" />
