@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import {
   signInWithPopup,
   signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
@@ -137,6 +138,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const bootstrappingUid = useRef<string | null>(null);
+
+  // Collect the result of a redirect sign-in. Firebase does not reliably
+  // surface it through onAuthStateChanged alone — on Safari in particular the
+  // sign-in can complete at Google and then appear to have done nothing,
+  // dropping the user back on the login screen still signed out.
+  useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      console.error('Redirect sign-in failed:', err.code, err.message);
+      setAuthError('Could not finish signing in. Please try again.');
+      setLoading(false);
+    });
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
