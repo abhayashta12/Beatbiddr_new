@@ -5,15 +5,7 @@
   "framework": null,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    {
-      "source": "/__/auth/:path*",
-      "destination": "https://beat-biddr.firebaseapp.com/__/auth/:path*"
-    },
-    {
-      "source": "/__/firebase/:path*",
-      "destination": "https://beat-biddr.firebaseapp.com/__/firebase/:path*"
-    },
-    { "source": "/((?!api|__).*)", "destination": "/index.html" }
+    { "source": "/((?!api).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
