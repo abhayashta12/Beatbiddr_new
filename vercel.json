@@ -6,7 +6,6 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     {
-      "comment": "Serves Firebase's auth handler from our own origin. Mobile browsers partition third-party storage, so a sign-in that bounces through beat-biddr.firebaseapp.com loses its pending state and silently fails. Must stay above the SPA catch-all.",
       "source": "/__/auth/:path*",
       "destination": "https://beat-biddr.firebaseapp.com/__/auth/:path*"
     },
