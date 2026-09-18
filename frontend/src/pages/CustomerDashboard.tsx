@@ -5,7 +5,6 @@ import AppShell from '../components/layout/AppShell';
 import RequestSheet from '../components/customer/RequestSheet';
 import type { SongRequest, Song } from '../types';
 import { redirectToSpotifyLogin, exchangeCodeForToken, getValidSpotifyToken } from '../utils/spotifyAuth';
-import { getUserPlaylists } from '../utils/spotifyApi';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -79,11 +78,6 @@ const CustomerDashboard: React.FC = () => {
     }
     getValidSpotifyToken().then((token) => token && setSpotifyToken(token));
   }, []);
-
-  // Keep the token warm for search; playlists aren't shown on this screen
-  useEffect(() => {
-    if (spotifyToken) getUserPlaylists(spotifyToken).catch(() => {});
-  }, [spotifyToken]);
 
   const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
     if (!user) return;
