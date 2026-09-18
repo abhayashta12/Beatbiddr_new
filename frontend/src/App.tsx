@@ -8,6 +8,7 @@ import DiscoverDJsPage from './pages/DiscoverDJsPage';
 import LoginPage from './pages/LoginPage';
 import DJOnboardingPage from './pages/DJOnboardingPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import UpdateBanner from './components/layout/UpdateBanner';
 
 function AppRoutes() {
   const { user, role, djProfileComplete } = useAuth();
@@ -79,6 +80,8 @@ function App() {
     <AuthProvider>
       <Router>
         <AppRoutes />
+        {/* Sits outside the routes so it survives navigation */}
+        <UpdateBanner />
       </Router>
     </AuthProvider>
   );
