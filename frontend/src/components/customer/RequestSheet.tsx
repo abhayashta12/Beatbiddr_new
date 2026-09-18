@@ -204,7 +204,7 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
                   onClick={() => setTip(amount)}
                   className={`py-3 rounded-xl text-[15px] font-bold tnum transition-colors ${
                     tip === amount
-                      ? 'bg-white text-dark-600'
+                      ? 'bg-brand-500 text-brand-ink'
                       : 'border border-white/12 text-neutral-400 hover:text-white'
                   }`}
                 >

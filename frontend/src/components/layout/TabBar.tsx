@@ -27,7 +27,7 @@ const TabBar: React.FC = () => {
       ];
 
   return (
-    <nav className="shrink-0 border-t border-white/[0.07] bg-dark-600 safe-bottom">
+    <nav className="shrink-0 border-t border-white/[0.12] bg-dark-600 safe-bottom">
       <div className="flex px-2 pt-2 pb-1.5">
         {tabs.map(({ to, label, Icon }) => (
           <NavLink
@@ -35,7 +35,7 @@ const TabBar: React.FC = () => {
             to={to}
             className={({ isActive }) =>
               `flex-1 flex flex-col items-center gap-1 py-1.5 rounded-xl transition-colors ${
-                isActive ? 'text-white' : 'text-neutral-600 hover:text-neutral-400'
+                isActive ? 'text-brand-500' : 'text-neutral-600 hover:text-neutral-400'
               }`
             }
           >

@@ -4,18 +4,30 @@
 // `primary`, `accent` and `neon` are kept as names so existing markup keeps
 // compiling, but every one of them now resolves to the same neutral ramp, which
 // drains the colour out of the whole app in one place.
+// Greys carry a faint green bias so they sit with the accent rather than
+// looking like a separate, colder palette laid underneath it.
 const neutral = {
   50: '#FFFFFF',
-  100: '#FAFAFA',
-  200: '#EDEDF0',
-  300: '#D4D4DA',
-  400: '#B4B4BD', // secondary text — bright enough to read in a dark room
-  500: '#9B9BA5',
-  600: '#7E7E88',
-  700: '#5C5C66',
-  800: '#3D3D45',
-  900: '#26262B',
-  950: '#151518',
+  100: '#F7FAF8',
+  200: '#E8EDEA',
+  300: '#CBD3CE',
+  400: '#A6AFA9', // secondary text — bright enough to read in a dark room
+  500: '#8E978F',
+  600: '#6E766F',
+  700: '#515852',
+  800: '#373D38',
+  900: '#232724',
+  950: '#141714',
+};
+
+// The one accent. It marks money, the live state, and the primary action.
+const brand = {
+  300: '#66EEB0',
+  400: '#33E795',
+  500: '#00E17A', // default
+  600: '#00C76B',
+  700: '#00A659',
+  ink: '#00140A', // text that sits on top of the accent
 };
 
 export default {
@@ -23,15 +35,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        brand,
+        // Legacy names from the old theme. Kept so any markup still using them
+        // compiles, but drained to neutral so nothing reintroduces stray colour.
         primary: neutral,
         accent: neutral,
         neon: neutral,
         dark: {
-          100: '#34343A',
-          200: '#2A2A30',
-          300: '#212126',
-          400: '#1A1A1E',
-          500: '#141417', // raised surfaces / sheets
+          100: '#2E342F',
+          200: '#252A26',
+          300: '#1C211D',
+          400: '#161A17',
+          500: '#101410', // raised surfaces / sheets
           600: '#000000', // app ground — true black reads sharper than charcoal
           700: '#000000',
           800: '#000000',

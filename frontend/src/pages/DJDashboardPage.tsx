@@ -41,7 +41,7 @@ const DJDashboardPage: React.FC = () => {
       <div className="px-6 pt-6 pb-8 flex flex-col min-h-full">
         <header>
           <p className="label">Tonight</p>
-          <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum">
+          <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum text-brand-500">
             ${earnings.toFixed(2)}
           </p>
           <p className="text-[13px] muted mt-2">
@@ -99,7 +99,7 @@ const DJDashboardPage: React.FC = () => {
               onClick={() => setTab(key)}
               className={`pb-3 -mb-px text-[14px] font-bold tracking-[-0.015em] border-b-2 transition-colors ${
                 tab === key
-                  ? 'border-white text-white'
+                  ? 'border-brand-500 text-brand-500'
                   : 'border-transparent text-neutral-600 hover:text-neutral-400'
               }`}
             >
@@ -128,7 +128,7 @@ const DJDashboardPage: React.FC = () => {
                       {r.message ? ` · “${r.message}”` : ''}
                     </p>
                   </div>
-                  <span className="text-[20px] font-extrabold tracking-[-0.03em] tnum shrink-0">
+                  <span className="text-[20px] font-extrabold tracking-[-0.03em] tnum shrink-0 text-brand-500">
                     ${r.tipAmount.toFixed(0)}
                   </span>
                 </div>

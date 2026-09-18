@@ -73,7 +73,7 @@ const DiscoverDJsPage: React.FC = () => {
           </p>
         </div>
         {dj.isLive && (
-          <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" aria-label="Live" />
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" aria-label="Live" />
         )}
       </button>
     </li>

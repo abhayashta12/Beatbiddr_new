@@ -32,7 +32,12 @@
   }
 
   .btn-primary {
-    @apply btn bg-white text-dark-600 hover:bg-neutral-200 active:bg-neutral-300;
+    @apply btn bg-brand-500 text-brand-ink hover:bg-brand-400 active:bg-brand-600;
+  }
+
+  /* For the rare second action that shouldn't compete with the accent */
+  .btn-light {
+    @apply btn bg-white text-dark-600 hover:bg-neutral-200;
   }
 
   /* Legacy names kept so existing markup keeps working */
@@ -66,7 +71,12 @@
   /* ---- form controls --------------------------------------------------- */
   .input {
     @apply bg-dark-400 border border-white/[0.14] rounded-xl px-4 py-3.5 text-white text-[15px]
-           placeholder-neutral-600 focus:outline-none focus:border-white/40;
+           placeholder-neutral-600 focus:outline-none focus:border-brand-500;
+  }
+
+  /* Money, queue position, live state — anything the accent should mark */
+  .accent {
+    @apply text-brand-500;
   }
 
   /* ---- typography ------------------------------------------------------ */

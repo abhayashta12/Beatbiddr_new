@@ -93,7 +93,7 @@ const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-3 gap-2.5 mt-7">
           {stats.map((s) => (
             <div key={s.label} className="card p-4">
-              <p className="text-[22px] font-extrabold tracking-[-0.03em] tnum leading-none">
+              <p className="text-[22px] font-extrabold tracking-[-0.03em] tnum leading-none text-brand-500">
                 {s.value}
               </p>
               <p className="label mt-1.5">{s.label}</p>

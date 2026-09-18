@@ -127,7 +127,7 @@ const CustomerDashboard: React.FC = () => {
               DJ Spinz
             </h1>
             <p className="text-[13px] muted mt-0.5 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />
               Neon Lounge · Live now
             </p>
           </header>
@@ -152,9 +152,9 @@ const CustomerDashboard: React.FC = () => {
                 <p className="text-[12.5px] muted truncate">{queue[0].song.artist}</p>
               </div>
               <span className="flex gap-[3px] items-end h-4 shrink-0" aria-hidden="true">
-                <span className="w-[3px] h-2 bg-white/70 rounded-full" />
-                <span className="w-[3px] h-4 bg-white/70 rounded-full" />
-                <span className="w-[3px] h-2.5 bg-white/70 rounded-full" />
+                <span className="w-[3px] h-2 bg-brand-500 rounded-full" />
+                <span className="w-[3px] h-4 bg-brand-500 rounded-full" />
+                <span className="w-[3px] h-2.5 bg-brand-500 rounded-full" />
               </span>
             </section>
           )}
@@ -167,7 +167,7 @@ const CustomerDashboard: React.FC = () => {
           >
             <span className="text-[13.5px] muted">Balance</span>
             <span className="flex items-baseline gap-2">
-              <span className="text-[17px] font-bold tracking-[-0.02em] tnum">
+              <span className="text-[17px] font-bold tracking-[-0.02em] tnum text-brand-500">
                 ${walletBalance.toFixed(2)}
               </span>
               <Plus size={15} className="text-neutral-500" />
@@ -187,7 +187,7 @@ const CustomerDashboard: React.FC = () => {
               </p>
 
               <div className="flex items-end gap-3.5 mt-6">
-                <span className="text-[56px] font-extrabold leading-[0.8] tracking-[-0.06em] tnum">
+                <span className="text-[56px] font-extrabold leading-[0.8] tracking-[-0.06em] tnum text-brand-500">
                   {position > 0 ? String(position).padStart(2, '0') : '—'}
                 </span>
                 <span className="text-[12.5px] muted leading-snug pb-1">

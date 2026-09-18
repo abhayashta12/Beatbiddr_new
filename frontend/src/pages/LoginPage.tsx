@@ -87,10 +87,10 @@ const LoginPage: React.FC = () => {
                   >
                     <span
                       className={`mt-1 w-[18px] h-[18px] rounded-full border shrink-0 flex items-center justify-center transition-colors ${
-                        active ? 'border-white' : 'border-white/25'
+                        active ? 'border-brand-500' : 'border-white/25'
                       }`}
                     >
-                      {active && <span className="w-2.5 h-2.5 rounded-full bg-white" />}
+                      {active && <span className="w-2.5 h-2.5 rounded-full bg-brand-500" />}
                     </span>
                     <span>
                       <span

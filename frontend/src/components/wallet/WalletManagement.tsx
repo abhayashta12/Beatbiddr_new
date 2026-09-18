@@ -115,7 +115,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
     <div className="px-6 pt-6 pb-8 flex flex-col min-h-full">
       <header>
         <p className="label">Balance</p>
-        <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum">
+        <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum text-brand-500">
           ${balance.toFixed(2)}
         </p>
       </header>
@@ -143,7 +143,7 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
               onClick={() => setAmount(preset)}
               className={`py-3.5 rounded-xl text-[15px] font-bold tnum transition-colors ${
                 amount === preset
-                  ? 'bg-white text-dark-600'
+                  ? 'bg-brand-500 text-brand-ink'
                   : 'border border-white/12 text-neutral-400 hover:text-white'
               }`}
             >

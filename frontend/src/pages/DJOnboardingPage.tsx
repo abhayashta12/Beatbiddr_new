@@ -137,7 +137,7 @@ const DJOnboardingPage: React.FC = () => {
                   />
                   <span className="absolute inset-y-0 right-0 pr-3 flex items-center">
                     {usernameStatus === 'checking' && <Loader2 size={16} className="animate-spin text-gray-400" />}
-                    {usernameStatus === 'available' && <CheckCircle size={16} className="text-neon-400" />}
+                    {usernameStatus === 'available' && <CheckCircle size={16} className="text-brand-500" />}
                     {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <XCircle size={16} className="text-red-400" />}
                   </span>
                 </div>
@@ -148,7 +148,7 @@ const DJOnboardingPage: React.FC = () => {
                   <p className="text-xs text-red-400 mt-1">3–20 characters: lowercase letters, numbers, underscores.</p>
                 )}
                 {usernameStatus === 'available' && (
-                  <p className="text-xs text-neon-400 mt-1">Username is available!</p>
+                  <p className="text-xs text-brand-500 mt-1">Username is available!</p>
                 )}
               </div>
 
