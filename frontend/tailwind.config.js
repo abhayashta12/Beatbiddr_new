@@ -5,17 +5,17 @@
 // compiling, but every one of them now resolves to the same neutral ramp, which
 // drains the colour out of the whole app in one place.
 const neutral = {
-  50: '#FAFAFA',
-  100: '#F4F4F5',
-  200: '#E4E4E7',
-  300: '#C8C8CE',
-  400: '#A1A1AA',
-  500: '#8A8A93',
-  600: '#71717A',
-  700: '#52525B',
-  800: '#3F3F46',
-  900: '#27272A',
-  950: '#18181B',
+  50: '#FFFFFF',
+  100: '#FAFAFA',
+  200: '#EDEDF0',
+  300: '#D4D4DA',
+  400: '#B4B4BD', // secondary text — bright enough to read in a dark room
+  500: '#9B9BA5',
+  600: '#7E7E88',
+  700: '#5C5C66',
+  800: '#3D3D45',
+  900: '#26262B',
+  950: '#151518',
 };
 
 export default {
@@ -27,14 +27,14 @@ export default {
         accent: neutral,
         neon: neutral,
         dark: {
-          100: '#2A2A2D',
-          200: '#232326',
-          300: '#1C1C1F',
-          400: '#161618',
-          500: '#121214',
-          600: '#0A0A0B', // app ground
-          700: '#08080A',
-          800: '#060607',
+          100: '#34343A',
+          200: '#2A2A30',
+          300: '#212126',
+          400: '#1A1A1E',
+          500: '#141417', // raised surfaces / sheets
+          600: '#000000', // app ground — true black reads sharper than charcoal
+          700: '#000000',
+          800: '#000000',
           900: '#000000',
         },
       },

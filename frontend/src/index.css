@@ -7,7 +7,7 @@
   body {
     /* Stops the rubber-band bounce revealing white behind the app */
     overscroll-behavior: none;
-    background-color: #0a0a0b;
+    background-color: #000000;
   }
 
   body {
@@ -45,36 +45,37 @@
   }
 
   .btn-ghost {
-    @apply btn bg-transparent text-white border border-white/15 hover:bg-white/5;
+    @apply btn bg-dark-400 text-white hover:bg-dark-300;
   }
 
   /* ---- surfaces --------------------------------------------------------
      No fills, no shadows. Separation comes from hairlines and space.     */
+  /* A filled surface reads better than a hairline box on true black */
   .card {
-    @apply rounded-2xl border border-white/[0.08] overflow-hidden;
+    @apply rounded-2xl bg-dark-500 overflow-hidden;
   }
 
   .glass-card {
-    @apply rounded-2xl border border-white/[0.08];
+    @apply rounded-2xl bg-dark-500;
   }
 
   .rule {
-    @apply border-t border-white/[0.07];
+    @apply border-t border-white/[0.12];
   }
 
   /* ---- form controls --------------------------------------------------- */
   .input {
-    @apply bg-dark-500 border border-white/10 rounded-xl px-4 py-3.5 text-white text-[15px]
-           placeholder-neutral-500 focus:outline-none focus:border-white/30;
+    @apply bg-dark-400 border border-white/[0.14] rounded-xl px-4 py-3.5 text-white text-[15px]
+           placeholder-neutral-600 focus:outline-none focus:border-white/40;
   }
 
   /* ---- typography ------------------------------------------------------ */
   .label {
-    @apply text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500;
+    @apply text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400;
   }
 
   .muted {
-    @apply text-neutral-500;
+    @apply text-neutral-400;
   }
 
   /* ---- layout ----------------------------------------------------------

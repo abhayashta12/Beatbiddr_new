@@ -138,6 +138,33 @@ const CustomerDashboard: React.FC = () => {
             </p>
           </header>
 
+          {/* what the DJ is playing next — real data, top of the accepted queue */}
+          {queue.length > 0 && (
+            <section className="card p-4 mt-6 flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-dark-300 shrink-0 overflow-hidden">
+                {queue[0].song.albumCover && (
+                  <img
+                    src={queue[0].song.albumCover}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="label mb-1">Up next</p>
+                <p className="text-[15px] font-bold tracking-[-0.02em] truncate leading-tight">
+                  {queue[0].song.title}
+                </p>
+                <p className="text-[12.5px] muted truncate">{queue[0].song.artist}</p>
+              </div>
+              <span className="flex gap-[3px] items-end h-4 shrink-0" aria-hidden="true">
+                <span className="w-[3px] h-2 bg-white/70 rounded-full" />
+                <span className="w-[3px] h-4 bg-white/70 rounded-full" />
+                <span className="w-[3px] h-2.5 bg-white/70 rounded-full" />
+              </span>
+            </section>
+          )}
+
           {/* balance */}
           <div className="rule mt-6" />
           <button

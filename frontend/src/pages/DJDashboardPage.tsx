@@ -49,8 +49,45 @@ const DJDashboardPage: React.FC = () => {
           </p>
         </header>
 
+        {/* up next — the highest tip in the accepted queue */}
+        {accepted.length > 0 && (
+          <section className="card p-4 mt-7">
+            <div className="flex items-center gap-3.5">
+              <div className="w-14 h-14 rounded-xl bg-dark-300 shrink-0 overflow-hidden">
+                {accepted[0].song.albumCover && (
+                  <img
+                    src={accepted[0].song.albumCover}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="label mb-1">Up next</p>
+                <p className="text-[16px] font-bold tracking-[-0.02em] truncate leading-tight">
+                  {accepted[0].song.title}
+                </p>
+                <p className="text-[12.5px] muted truncate">
+                  {accepted[0].song.artist} · ${accepted[0].tipAmount.toFixed(0)} from{' '}
+                  {accepted[0].requester.name}
+                </p>
+              </div>
+            </div>
+            {accepted[0].message && (
+              <p className="text-[13px] muted mt-3 leading-relaxed">“{accepted[0].message}”</p>
+            )}
+            <button
+              onClick={() => setStatus(accepted[0].id, 'played')}
+              disabled={busyId === accepted[0].id}
+              className="btn-primary w-full mt-4 flex items-center justify-center gap-2 py-3.5"
+            >
+              <Play size={16} /> Mark as played
+            </button>
+          </section>
+        )}
+
         {/* switch */}
-        <div className="flex gap-6 mt-8 border-b border-white/[0.07]">
+        <div className="flex gap-6 mt-8 border-b border-white/[0.12]">
           {(
             [
               ['incoming', `Incoming ${pending.length ? `(${pending.length})` : ''}`],
