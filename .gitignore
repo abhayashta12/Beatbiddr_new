@@ -5,15 +5,26 @@ frontend/node_modules/
 # Build output
 frontend/dist/
 
-# Environment variables — never commit these
-.env
-.env.example
-.env.local
-.env.*.local
-frontend/.env
-frontend/.env.example
-frontend/.env.local
-frontend/.env.*.local
+# Environment variables — never commit these.
+# The leading ** makes each pattern apply at any depth, so a file dropped in a
+# subfolder is covered too.
+**/.env
+**/.env.*
+!**/.env.example.template
+
+# Service-account and private keys. A Firebase admin key grants full read/write
+# over the whole project, bypassing security rules — it must never reach git.
+**/*serviceaccount*.json
+**/*service-account*.json
+**/*adminsdk*.json
+**/serviceAccount*.json
+**/firebase-adminsdk*.json
+*.pem
+*.p12
+*.pfx
+*.key
+**/credentials.json
+**/secrets.json
 
 # Vercel
 .vercel
