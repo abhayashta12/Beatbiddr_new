@@ -206,22 +206,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     setAuthError(null);
-    // Popups are unreliable on mobile browsers (blocked or orphaned, leaving the
-    // button spinning forever) — use the full-page redirect flow there instead.
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      await signInWithRedirect(auth, googleProvider);
-      return;
-    }
+
+    // Popup first, on every device. It keeps the page alive throughout, so it
+    // survives the storage partitioning that breaks redirect sign-in on phones.
+    // The popup used to hang because the browser's COOP policy blocked
+    // Firebase's window.closed check; the app now sends
+    // Cross-Origin-Opener-Policy: same-origin-allow-popups so it can complete.
     try {
       await signInWithPopup(auth, googleProvider);
+      return;
     } catch (err: any) {
-      if (err.code === 'auth/popup-blocked') {
-        await signInWithRedirect(auth, googleProvider);
-        return;
-      }
-      throw err;
+      const recoverable = [
+        'auth/popup-blocked',
+        'auth/operation-not-supported-in-this-environment',
+        'auth/cancelled-popup-request',
+      ];
+      if (err?.code === 'auth/popup-closed-by-user') return; // user backed out
+      if (!recoverable.includes(err?.code)) throw err;
+      console.warn('Popup sign-in unavailable, falling back to redirect:', err.code);
     }
+
+    // Only reached when the browser refuses popups outright.
+    await signInWithRedirect(auth, googleProvider);
   };
 
   const clearAuthError = () => setAuthError(null);
