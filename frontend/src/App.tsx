@@ -13,6 +13,7 @@ const WalletPage = lazy(() => import('./pages/WalletPage'));
 const DiscoverDJsPage = lazy(() => import('./pages/DiscoverDJsPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DJOnboardingPage = lazy(() => import('./pages/DJOnboardingPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 const RouteFallback = () => (
   <div className="min-h-screen bg-dark-600 flex items-center justify-center">
@@ -77,6 +78,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DiscoverDJsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

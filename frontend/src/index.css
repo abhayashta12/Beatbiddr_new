@@ -3,53 +3,107 @@
 @tailwind utilities;
 
 @layer base {
+  html,
   body {
-    @apply bg-dark-600 text-white font-sans;
+    /* Stops the rubber-band bounce revealing white behind the app */
+    overscroll-behavior: none;
+    background-color: #0a0a0b;
+  }
+
+  body {
+    @apply bg-dark-600 text-white font-sans antialiased;
+    letter-spacing: -0.011em;
+  }
+
+  /* Figures line up in columns wherever money or positions are shown */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
+  /* ---- buttons ---------------------------------------------------------
+     White is the accent: the primary action is the only filled element on
+     any screen, so it needs no colour to stand out.                      */
   .btn {
-    @apply px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-opacity-50;
+    @apply px-5 py-4 rounded-2xl font-bold text-[15px] tracking-[-0.015em]
+           transition-colors duration-150 focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-40;
   }
-  
+
   .btn-primary {
-    @apply btn bg-primary-600 hover:bg-primary-700 text-white focus:ring-primary-500;
+    @apply btn bg-white text-dark-600 hover:bg-neutral-200 active:bg-neutral-300;
   }
-  
+
+  /* Legacy names kept so existing markup keeps working */
   .btn-accent {
-    @apply btn bg-accent-600 hover:bg-accent-700 text-white focus:ring-accent-500;
+    @apply btn-primary;
   }
-  
+
   .btn-neon {
-    @apply btn bg-neon-600 hover:bg-neon-700 text-white focus:ring-neon-500;
+    @apply btn-primary;
   }
-  
+
   .btn-ghost {
-    @apply btn bg-transparent hover:bg-white/10 text-white border border-white/20;
+    @apply btn bg-transparent text-white border border-white/15 hover:bg-white/5;
   }
-  
+
+  /* ---- surfaces --------------------------------------------------------
+     No fills, no shadows. Separation comes from hairlines and space.     */
   .card {
-    @apply bg-dark-400/70 backdrop-blur-md rounded-xl border border-white/5 shadow-lg overflow-hidden;
+    @apply rounded-2xl border border-white/[0.08] overflow-hidden;
   }
-  
-  .input {
-    @apply bg-dark-300 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
-  }
-  
+
   .glass-card {
-    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl;
+    @apply rounded-2xl border border-white/[0.08];
   }
-  
-  .neon-border {
-    @apply border border-neon-500/50 shadow-neon-teal;
+
+  .rule {
+    @apply border-t border-white/[0.07];
   }
-  
-  .primary-border {
-    @apply border border-primary-500/50 shadow-neon-primary;
+
+  /* ---- form controls --------------------------------------------------- */
+  .input {
+    @apply bg-dark-500 border border-white/10 rounded-xl px-4 py-3.5 text-white text-[15px]
+           placeholder-neutral-500 focus:outline-none focus:border-white/30;
   }
-  
+
+  /* ---- typography ------------------------------------------------------ */
+  .label {
+    @apply text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500;
+  }
+
+  .muted {
+    @apply text-neutral-500;
+  }
+
+  /* ---- layout ----------------------------------------------------------
+     The app owns the full viewport. dvh follows Safari's collapsing
+     address bar; vh does not, which is what pushes fixed bottom bars off
+     screen on iOS.                                                       */
+  .app-shell {
+    height: 100dvh;
+    @apply flex flex-col overflow-hidden;
+  }
+
+  .app-scroll {
+    @apply flex-1 overflow-y-auto overscroll-contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Clears the home indicator and Safari's bottom toolbar */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Glow utilities from the old theme, neutralised */
+  .neon-border,
+  .primary-border,
   .accent-border {
-    @apply border border-accent-500/50 shadow-neon-accent;
+    @apply border border-white/15;
   }
 }

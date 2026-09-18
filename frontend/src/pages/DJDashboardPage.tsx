@@ -1,76 +1,136 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
-import Navbar from '../components/layout/Navbar';
-import DJDashboard from '../components/dj/Dashboard';
+import { Check, X, Play } from 'lucide-react';
+import AppShell from '../components/layout/AppShell';
 import type { SongRequest } from '../types';
 import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { useAuth } from '../contexts/AuthContext';
+
+type Tab = 'incoming' | 'queue';
 
 const DJDashboardPage: React.FC = () => {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
-
-  const [pendingRequests, setPendingRequests] = useState<SongRequest[]>([]);
-  const [acceptedRequests, setAcceptedRequests] = useState<SongRequest[]>([]);
-  const [earnings, setEarnings] = useState(0);
-  const [totalRequests, setTotalRequests] = useState(0);
+  const [requests, setRequests] = useState<SongRequest[]>([]);
+  const [tab, setTab] = useState<Tab>('incoming');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'songRequests'), orderBy('tipAmount', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const all: SongRequest[] = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<SongRequest, 'id'>),
-      }));
-
-      setPendingRequests(all.filter((r) => r.status === 'pending'));
-      setAcceptedRequests(all.filter((r) => r.status === 'accepted'));
-      setTotalRequests(all.length);
-      setEarnings(
-        all.filter((r) => r.status === 'accepted').reduce((sum, r) => sum + r.tipAmount, 0)
-      );
+    return onSnapshot(q, (snap) => {
+      setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
     });
-    return unsub;
   }, []);
 
-  const handleAccept = async (id: string) => {
-    await updateDoc(doc(db, 'songRequests', id), { status: 'accepted' });
+  const pending = requests.filter((r) => r.status === 'pending');
+  const accepted = requests.filter((r) => r.status === 'accepted');
+  const earnings = accepted.reduce((sum, r) => sum + r.tipAmount, 0);
+
+  const setStatus = async (id: string, status: SongRequest['status']) => {
+    setBusyId(id);
+    try {
+      await updateDoc(doc(db, 'songRequests', id), { status });
+    } catch (err) {
+      console.error('Could not update request:', err);
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const handleReject = async (id: string) => {
-    await updateDoc(doc(db, 'songRequests', id), { status: 'rejected' });
-  };
+  const list = tab === 'incoming' ? pending : accepted;
 
   return (
-    <div className="bg-dark-600 min-h-screen">
-      <Navbar />
-      <div className="pt-20 px-6 max-w-6xl mx-auto flex justify-end">
-        <button
-          onClick={handleLogout}
-          className="btn-ghost flex items-center text-sm border-red-500/30 text-red-400 hover:bg-red-500/10"
-        >
-          <LogOut size={16} className="mr-2" />
-          Logout
-        </button>
+    <AppShell>
+      <div className="px-6 pt-6 pb-8 flex flex-col min-h-full">
+        <header>
+          <p className="label">Tonight</p>
+          <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum">
+            ${earnings.toFixed(2)}
+          </p>
+          <p className="text-[13px] muted mt-2">
+            {accepted.length} accepted · {pending.length} waiting
+          </p>
+        </header>
+
+        {/* switch */}
+        <div className="flex gap-6 mt-8 border-b border-white/[0.07]">
+          {(
+            [
+              ['incoming', `Incoming ${pending.length ? `(${pending.length})` : ''}`],
+              ['queue', `Queue ${accepted.length ? `(${accepted.length})` : ''}`],
+            ] as [Tab, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`pb-3 -mb-px text-[14px] font-bold tracking-[-0.015em] border-b-2 transition-colors ${
+                tab === key
+                  ? 'border-white text-white'
+                  : 'border-transparent text-neutral-600 hover:text-neutral-400'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* list */}
+        {list.length === 0 ? (
+          <p className="text-[14px] muted mt-8">
+            {tab === 'incoming' ? 'No requests waiting.' : 'Nothing queued yet.'}
+          </p>
+        ) : (
+          <ul className="flex flex-col mt-2">
+            {list.map((r) => (
+              <li key={r.id} className="py-5 border-b border-white/[0.06]">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[17px] font-bold tracking-[-0.02em] leading-snug truncate">
+                      {r.song.title}
+                    </p>
+                    <p className="text-[13px] muted mt-0.5 truncate">{r.song.artist}</p>
+                    <p className="text-[12.5px] muted mt-1.5 truncate">
+                      {r.requester.name}
+                      {r.message ? ` · “${r.message}”` : ''}
+                    </p>
+                  </div>
+                  <span className="text-[20px] font-extrabold tracking-[-0.03em] tnum shrink-0">
+                    ${r.tipAmount.toFixed(0)}
+                  </span>
+                </div>
+
+                <div className="flex gap-2.5 mt-4">
+                  {tab === 'incoming' ? (
+                    <>
+                      <button
+                        onClick={() => setStatus(r.id, 'accepted')}
+                        disabled={busyId === r.id}
+                        className="btn-primary flex-1 flex items-center justify-center gap-2 py-3.5"
+                      >
+                        <Check size={17} /> Accept
+                      </button>
+                      <button
+                        onClick={() => setStatus(r.id, 'rejected')}
+                        disabled={busyId === r.id}
+                        className="btn-ghost px-5 py-3.5 flex items-center justify-center"
+                        aria-label="Reject"
+                      >
+                        <X size={17} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setStatus(r.id, 'played')}
+                      disabled={busyId === r.id}
+                      className="btn-ghost flex-1 flex items-center justify-center gap-2 py-3.5"
+                    >
+                      <Play size={15} /> Mark as played
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <div>
-        <DJDashboard
-          earnings={earnings}
-          totalRequests={totalRequests}
-          pendingRequests={pendingRequests}
-          acceptedRequests={acceptedRequests}
-          onAccept={handleAccept}
-          onReject={handleReject}
-        />
-      </div>
-    </div>
+    </AppShell>
   );
 };
 

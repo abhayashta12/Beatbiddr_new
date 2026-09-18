@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Headphones, AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import Navbar from '../components/layout/Navbar';
 
 const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
 
@@ -97,25 +95,16 @@ const DJOnboardingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark-600">
-      <Navbar />
-      <div className="flex items-center justify-center min-h-screen px-4 py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-lg"
-        >
-          <div className="card p-8">
-            <div className="text-center mb-8">
-              <div className="flex justify-center mb-4">
-                <div className="bg-neon-500/20 rounded-full p-4">
-                  <Headphones size={36} className="text-neon-400" />
-                </div>
-              </div>
-              <h1 className="text-2xl font-bold mb-2">Set Up Your DJ Profile</h1>
-              <p className="text-gray-400 text-sm">
-                We need a few details to verify you're a real DJ. Your username is permanent and unique.
+    <div className="app-shell bg-dark-600">
+      <div className="app-scroll safe-top">
+        <div className="px-6 pt-14 pb-10 w-full max-w-md mx-auto">
+          <div>
+            <div className="mb-8">
+              <h1 className="text-[28px] font-extrabold tracking-[-0.04em] leading-tight">
+                Set up your DJ profile
+              </h1>
+              <p className="text-[14px] muted mt-2.5 leading-relaxed max-w-[34ch]">
+                A few details so fans know who they're tipping. Your username is permanent.
               </p>
             </div>
 
@@ -261,7 +250,7 @@ const DJOnboardingPage: React.FC = () => {
               </button>
             </form>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

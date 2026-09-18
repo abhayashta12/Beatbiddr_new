@@ -1,73 +1,65 @@
 /** @type {import('tailwindcss').Config} */
+
+// Minimal greyscale. There is no accent colour — white is the accent.
+// `primary`, `accent` and `neon` are kept as names so existing markup keeps
+// compiling, but every one of them now resolves to the same neutral ramp, which
+// drains the colour out of the whole app in one place.
+const neutral = {
+  50: '#FAFAFA',
+  100: '#F4F4F5',
+  200: '#E4E4E7',
+  300: '#C8C8CE',
+  400: '#A1A1AA',
+  500: '#8A8A93',
+  600: '#71717A',
+  700: '#52525B',
+  800: '#3F3F46',
+  900: '#27272A',
+  950: '#18181B',
+};
+
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
-          950: '#2e1065',
-        },
-        accent: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-          950: '#172554',
-        },
-        neon: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-          950: '#022c22',
-        },
+        primary: neutral,
+        accent: neutral,
+        neon: neutral,
         dark: {
-          100: '#2d2d2d',
-          200: '#252525',
-          300: '#1f1f1f',
-          400: '#1a1a1a',
-          500: '#151515',
-          600: '#121212',
-          700: '#0e0e0e',
-          800: '#0a0a0a',
-          900: '#050505',
+          100: '#2A2A2D',
+          200: '#232326',
+          300: '#1C1C1F',
+          400: '#161618',
+          500: '#121214',
+          600: '#0A0A0B', // app ground
+          700: '#08080A',
+          800: '#060607',
+          900: '#000000',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'neon-primary': '0 0 5px theme("colors.primary.500"), 0 0 20px theme("colors.primary.500")',
-        'neon-accent': '0 0 5px theme("colors.accent.500"), 0 0 20px theme("colors.accent.500")',
-        'neon-teal': '0 0 5px theme("colors.neon.500"), 0 0 20px theme("colors.neon.500")',
+        // Glows removed — kept as no-ops so any leftover class is harmless.
+        'neon-primary': 'none',
+        'neon-accent': 'none',
+        'neon-teal': 'none',
+        sheet: '0 -12px 40px rgba(0,0,0,0.5)',
       },
       backdropBlur: {
         xs: '2px',
       },
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'sheet-up': 'sheet-up 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+      },
+      keyframes: {
+        'sheet-up': {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
       },
     },
   },

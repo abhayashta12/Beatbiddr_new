@@ -14,6 +14,21 @@
       "fields": [
         { "fieldPath": "tipAmount", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "tipAmount", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ledger",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
