@@ -46,7 +46,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ received: true });
     }
 
+    // Everything we create is USD. Dividing by 100 is only correct for
+    // two-decimal currencies, so refuse anything else rather than credit a
+    // wrong figure (JPY, for instance, has no minor unit).
+    if (intent.currency !== 'usd') {
+      console.error(`Unexpected currency ${intent.currency} on ${intent.id} — not credited.`);
+      return res.status(200).json({ received: true });
+    }
+
+    // amount_received, not amount: a partial capture must credit only what was
+    // actually taken.
     const amountDollars = intent.amount_received / 100;
+    if (!Number.isFinite(amountDollars) || amountDollars <= 0) {
+      console.error(`Non-positive amount on ${intent.id} — not credited.`);
+      return res.status(200).json({ received: true });
+    }
     const db = adminDb();
     const userRef = db.collection('users').doc(uid);
     // Ledger doc id = PaymentIntent id → retried webhook deliveries are idempotent.

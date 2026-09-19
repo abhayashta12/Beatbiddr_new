@@ -32,6 +32,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   ) {
     return res.status(400).json({ error: 'Invalid song.' });
   }
+  // The client sends these, so cap them — otherwise a crafted request could
+  // store megabytes per document and run up storage against the project.
+  if (
+    song.id.length > 100 ||
+    song.title.length > 300 ||
+    song.artist.length > 300 ||
+    song.albumCover.length > 500 ||
+    (song.album !== undefined && (typeof song.album !== 'string' || song.album.length > 300))
+  ) {
+    return res.status(400).json({ error: 'Song details are too long.' });
+  }
   if (typeof tipAmount !== 'number' || !Number.isFinite(tipAmount) || tipAmount < 1 || tipAmount > 1000) {
     return res.status(400).json({ error: 'Tip must be between $1 and $1000.' });
   }
@@ -91,7 +102,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ requestId: requestRef.id });
   } catch (err: any) {
     const status = err.status ?? 500;
-    if (status === 500) console.error('submit-request failed:', err.message);
-    return res.status(status).json({ error: err.message ?? 'Failed to submit request.' });
+    if (status === 500) {
+      // Internal failures are logged but never echoed back — the underlying
+      // message can name collection paths and other internals.
+      console.error('submit-request failed:', err.message);
+      return res.status(500).json({ error: 'Could not send your request. Please try again.' });
+    }
+    // Deliberate, user-facing messages only (insufficient balance, wrong role)
+    return res.status(status).json({ error: err.message });
   }
 }
