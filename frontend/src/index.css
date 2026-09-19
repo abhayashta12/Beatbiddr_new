@@ -111,6 +111,22 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
+  /* Landing-page equaliser. Replaces the 830 KB WebGL scene with something
+     phones can actually render. */
+  .eq-bar {
+    animation: eq 1.1s ease-in-out infinite alternate;
+    transform-origin: bottom;
+  }
+
+  @keyframes eq {
+    from { transform: scaleY(0.25); }
+    to { transform: scaleY(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .eq-bar { animation: none; transform: scaleY(0.7); }
+  }
+
   /* Glow utilities from the old theme, neutralised */
   .neon-border,
   .primary-border,

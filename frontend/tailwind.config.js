@@ -69,11 +69,16 @@ export default {
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'sheet-up': 'sheet-up 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+        rise: 'rise 240ms cubic-bezier(0.32, 0.72, 0, 1)',
       },
       keyframes: {
         'sheet-up': {
           from: { transform: 'translateY(100%)' },
           to: { transform: 'translateY(0)' },
+        },
+        rise: {
+          from: { transform: 'translateY(16px)', opacity: '0' },
+          to: { transform: 'translateY(0)', opacity: '1' },
         },
       },
     },
