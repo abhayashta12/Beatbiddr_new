@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
 import { searchSpotify } from '../../utils/spotifyApi';
+import SpotifyPrompt from './SpotifyPrompt';
 import type { Song } from '../../types';
 
 interface RequestSheetProps {
@@ -123,6 +124,10 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
         </div>
 
         <div className="px-5 pb-5 pt-2 overflow-y-auto overscroll-contain flex flex-col gap-4">
+          {/* Caught here too: this is the moment someone discovers search only
+              knows three songs without Spotify. */}
+          {!spotifyToken && <SpotifyPrompt connected={false} variant="inline" />}
+
           {/* search */}
           <div className="relative">
             <Search

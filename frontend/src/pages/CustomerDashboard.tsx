@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import RequestSheet from '../components/customer/RequestSheet';
+import SpotifyPrompt from '../components/customer/SpotifyPrompt';
 import type { SongRequest, Song } from '../types';
-import { redirectToSpotifyLogin, exchangeCodeForToken, getValidSpotifyToken } from '../utils/spotifyAuth';
+import { exchangeCodeForToken, getValidSpotifyToken } from '../utils/spotifyAuth';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -25,6 +26,15 @@ const CustomerDashboard: React.FC = () => {
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [queue, setQueue] = useState<SongRequest[]>([]);
+  // Dismissal lasts the session — connecting is worth asking about again later
+  const [promptDismissed, setPromptDismissed] = useState(
+    () => sessionStorage.getItem('spotify_prompt_dismissed') === '1'
+  );
+
+  const dismissPrompt = () => {
+    sessionStorage.setItem('spotify_prompt_dismissed', '1');
+    setPromptDismissed(true);
+  };
 
   // Balance — written only by the server
   useEffect(() => {
@@ -132,6 +142,17 @@ const CustomerDashboard: React.FC = () => {
             </p>
           </header>
 
+          {/* Spotify — prominent until connected, then a quiet confirmation */}
+          {(!promptDismissed || spotifyToken) && (
+            <div className="mt-5">
+              <SpotifyPrompt
+                connected={Boolean(spotifyToken)}
+                variant="banner"
+                onDismiss={dismissPrompt}
+              />
+            </div>
+          )}
+
           {/* what the DJ is playing next — real data, top of the accepted queue */}
           {queue.length > 0 && (
             <section className="card p-4 mt-6 flex items-center gap-3.5">
@@ -231,15 +252,7 @@ const CustomerDashboard: React.FC = () => {
           )}
 
           {/* primary action */}
-          <div className="mt-auto pt-10 flex flex-col gap-3">
-            {!spotifyToken && (
-              <button
-                onClick={() => redirectToSpotifyLogin()}
-                className="text-[13px] font-semibold text-neutral-500 hover:text-white py-1"
-              >
-                Connect Spotify for full search
-              </button>
-            )}
+          <div className="mt-auto pt-10">
             <button onClick={() => setSheetOpen(true)} className="btn-primary w-full">
               Request a song
             </button>
