@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Music2 } from 'lucide-react';
+import { ChevronRight, Music2, Settings } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import { useAuth } from '../contexts/AuthContext';
 import { clearSpotifyToken } from '../utils/spotifyAuth';
@@ -74,6 +74,16 @@ const ProfilePage: React.FC = () => {
   return (
     <AppShell>
       <div className="px-6 pt-6 pb-8 flex flex-col min-h-full">
+        <div className="flex justify-end -mt-1 -mr-2 mb-1">
+          <button
+            onClick={() => navigate('/settings')}
+            aria-label="Settings"
+            className="p-2 text-neutral-400 hover:text-white transition-colors"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
+
         <header className="flex items-center gap-3.5">
           {user?.photoURL ? (
             <img src={user.photoURL} alt="" className="w-16 h-16 rounded-2xl object-cover shrink-0" />
@@ -151,8 +161,14 @@ const ProfilePage: React.FC = () => {
 
         <div className="mt-auto pt-10">
           <p className="text-[12px] muted mb-4 leading-relaxed">
-            Each account holds one role. To use BeatBiddr the other way, delete this profile and
-            sign up again.
+            Each account holds one role. To use BeatBiddr the other way, delete your account in{' '}
+            <button
+              onClick={() => navigate('/settings')}
+              className="text-brand-500 font-semibold underline underline-offset-2"
+            >
+              Settings
+            </button>{' '}
+            and sign up again.
           </p>
           <button onClick={handleLogout} className="btn-ghost w-full">
             Log out

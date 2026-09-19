@@ -14,6 +14,8 @@ const DiscoverDJsPage = lazy(() => import('./pages/DiscoverDJsPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DJOnboardingPage = lazy(() => import('./pages/DJOnboardingPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
 
 const RouteFallback = () => (
   <div className="min-h-screen bg-dark-600 flex items-center justify-center">
@@ -89,6 +91,16 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Public — people should be able to read the terms before signing up */}
+      <Route path="/legal/:doc" element={<LegalPage />} />
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
