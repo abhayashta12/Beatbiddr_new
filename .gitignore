@@ -29,6 +29,10 @@ frontend/dist/
 # Vercel
 .vercel
 
+# Firebase CLI local cache. firebase.json and .firebaserc are NOT ignored —
+# they hold no secrets and are how rules and indexes get deployed.
+.firebase/
+
 # macOS
 .DS_Store
 **/.DS_Store
