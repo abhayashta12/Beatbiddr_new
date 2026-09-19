@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { X, Search, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Search, Loader2, ArrowRight } from 'lucide-react';
 import { searchSpotify } from '../../utils/spotifyApi';
 import SpotifyPrompt from './SpotifyPrompt';
 import type { Song } from '../../types';
@@ -12,6 +13,9 @@ interface RequestSheetProps {
   balance: number;
 }
 
+// Mirrors the server's own limits in /api/submit-request
+const MIN_TIP = 1;
+const MAX_TIP = 1000;
 const TIP_PRESETS = [5, 10, 20, 50];
 
 const FALLBACK_SONGS: Song[] = [
@@ -22,8 +26,7 @@ const FALLBACK_SONGS: Song[] = [
 
 /**
  * Requesting happens in a sheet rather than on the page: it keeps every control
- * within thumb reach, and it rides above the keyboard when the search field is
- * focused — which an inline form partway down a page does not.
+ * within thumb reach, and it rides above the keyboard when a field is focused.
  */
 const RequestSheet: React.FC<RequestSheetProps> = ({
   open,
@@ -32,13 +35,43 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
   spotifyToken,
   balance,
 }) => {
+  const navigate = useNavigate();
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Song[]>([]);
   const [selected, setSelected] = useState<Song | null>(null);
-  const [tip, setTip] = useState(10);
+  const [tipText, setTipText] = useState('10');
   const [message, setMessage] = useState('');
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const { tip, tipValid, tipProblem } = useMemo(() => {
+    const parsed = Number.parseFloat(tipText);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return { tip: 0, tipValid: false, tipProblem: null as string | null };
+    }
+    if (parsed < MIN_TIP) return { tip: parsed, tipValid: false, tipProblem: `Minimum tip is $${MIN_TIP}.` };
+    if (parsed > MAX_TIP)
+      return { tip: parsed, tipValid: false, tipProblem: `Maximum tip is $${MAX_TIP.toLocaleString()}.` };
+    return { tip: Math.round(parsed * 100) / 100, tipValid: true, tipProblem: null };
+  }, [tipText]);
+
+  const shortBy = tipValid ? tip - balance : 0;
+  // Only meaningful once a song is chosen — otherwise the button would offer to
+  // top up while its label still asked for a song.
+  const needsFunds = Boolean(selected) && tipValid && shortBy > 0;
+
+  const handleTipChange = (raw: string) => {
+    const cleaned = raw.replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const next =
+      parts.length > 2
+        ? `${parts[0]}.${parts.slice(1).join('')}`
+        : parts[1] !== undefined
+        ? `${parts[0]}.${parts[1].slice(0, 2)}`
+        : parts[0];
+    setTipText(next.slice(0, 7));
+  };
 
   // Reset whenever the sheet is dismissed so it never reopens half-filled
   useEffect(() => {
@@ -46,7 +79,7 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
       setQuery('');
       setResults([]);
       setSelected(null);
-      setTip(10);
+      setTipText('10');
       setMessage('');
       setSubmitting(false);
     }
@@ -83,8 +116,15 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
     }
   };
 
-  const handleSubmit = async () => {
-    if (!selected || submitting) return;
+  const handlePrimaryAction = async () => {
+    // Not enough in the wallet — send them to top up rather than stranding
+    // them on a button that looks tappable but does nothing.
+    if (needsFunds) {
+      onClose();
+      navigate('/wallet');
+      return;
+    }
+    if (!selected || !tipValid || submitting) return;
     setSubmitting(true);
     try {
       await onSubmit(selected, tip, message);
@@ -94,7 +134,14 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
     }
   };
 
-  const shortBy = tip - balance;
+  const actionDisabled = submitting || (!needsFunds && (!selected || !tipValid));
+
+  const actionLabel = () => {
+    if (!selected) return 'Pick a song first';
+    if (!tipValid) return tipProblem ? 'Choose a valid tip' : 'Enter a tip amount';
+    if (needsFunds) return `Add $${shortBy.toFixed(2)} to your wallet`;
+    return `Pay $${tip.toFixed(2)} & request`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -199,16 +246,40 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
             </div>
           )}
 
-          {/* tip */}
+          {/* tip — typeable, presets are shortcuts */}
           <div>
             <p className="label mb-2.5">Tip amount</p>
-            <div className="grid grid-cols-4 gap-2">
+
+            <label htmlFor="tip-amount" className="sr-only">
+              Tip amount in dollars
+            </label>
+            <div
+              className={`flex items-center justify-center gap-0.5 py-2 border-b-2 transition-colors ${
+                tipProblem ? 'border-red-500/70' : 'border-white/15 focus-within:border-brand-500'
+              }`}
+            >
+              <span className="text-[20px] font-bold text-neutral-400 self-start mt-1">$</span>
+              <input
+                id="tip-amount"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={tipText}
+                onChange={(e) => handleTipChange(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                aria-invalid={Boolean(tipProblem)}
+                className="bg-transparent border-0 outline-none text-center text-[38px] font-extrabold
+                           tracking-[-0.045em] leading-none tnum w-[4.4ch] p-0 text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 mt-3.5">
               {TIP_PRESETS.map((amount) => (
                 <button
                   key={amount}
-                  onClick={() => setTip(amount)}
-                  className={`py-3 rounded-xl text-[15px] font-bold tnum transition-colors ${
-                    tip === amount
+                  onClick={() => setTipText(String(amount))}
+                  className={`py-2.5 rounded-xl text-[14.5px] font-bold tnum transition-colors ${
+                    tipValid && tip === amount
                       ? 'bg-brand-500 text-brand-ink'
                       : 'border border-white/12 text-neutral-400 hover:text-white'
                   }`}
@@ -217,7 +288,10 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
                 </button>
               ))}
             </div>
-            <p className="text-[12.5px] muted mt-2.5">Higher tips get played sooner.</p>
+
+            <p className={`text-[12.5px] mt-2.5 ${tipProblem ? 'text-red-400' : 'muted'}`}>
+              {tipProblem ?? 'Higher tips get played sooner.'}
+            </p>
           </div>
 
           {/* message */}
@@ -234,24 +308,26 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
             />
           </div>
 
-          {/* submit */}
+          {/* action */}
           <button
-            onClick={handleSubmit}
-            disabled={!selected || submitting || shortBy > 0}
-            className="btn-primary w-full flex items-center justify-center mt-1"
+            onClick={handlePrimaryAction}
+            disabled={actionDisabled}
+            className="btn-primary w-full flex items-center justify-center gap-2 mt-1"
           >
             {submitting ? (
               <Loader2 size={18} className="animate-spin" />
-            ) : shortBy > 0 ? (
-              `Add $${shortBy.toFixed(2)} to your wallet`
-            ) : selected ? (
-              `Pay $${tip.toFixed(2)} & request`
             ) : (
-              'Pick a song first'
+              <>
+                {actionLabel()}
+                {needsFunds && selected && <ArrowRight size={16} />}
+              </>
             )}
           </button>
+
           <p className="text-[12px] muted text-center -mt-1">
-            Balance after this request: ${Math.max(0, balance - tip).toFixed(2)}
+            {needsFunds
+              ? `Balance $${balance.toFixed(2)} — not enough for a $${tip.toFixed(2)} tip`
+              : `Balance after this request: $${Math.max(0, balance - (tipValid ? tip : 0)).toFixed(2)}`}
           </p>
         </div>
       </div>
