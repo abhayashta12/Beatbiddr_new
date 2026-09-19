@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Music2, Settings } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Music2, Settings } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import { useAuth } from '../contexts/AuthContext';
 import { clearSpotifyToken } from '../utils/spotifyAuth';
@@ -21,6 +21,9 @@ const ProfilePage: React.FC = () => {
 
   const [balance, setBalance] = useState(0);
   const [requests, setRequests] = useState<SongRequest[]>([]);
+  // A failed query used to look identical to having no requests, which hid a
+  // missing Firestore index for days. Never render "nothing here" on an error.
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -41,10 +44,23 @@ const ProfilePage: React.FC = () => {
             orderBy('timestamp', 'desc'),
             limit(30)
           );
+    setHistoryError(null);
     return onSnapshot(
       q,
-      (snap) => setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) }))),
-      (err) => console.error('History listener failed:', err)
+      (snap) => {
+        setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
+        setHistoryError(null);
+      },
+      (err) => {
+        console.error('History listener failed:', err);
+        setHistoryError(
+          err.code === 'failed-precondition'
+            ? 'This list needs a database index that has not been created yet.'
+            : err.code === 'permission-denied'
+            ? 'You do not have permission to read this yet.'
+            : 'Could not load your requests.'
+        );
+      }
     );
   }, [user, role]);
 
@@ -124,7 +140,15 @@ const ProfilePage: React.FC = () => {
         {/* history */}
         <section className="mt-6">
           <p className="label mb-3">{isDJ ? 'Recently played' : 'Your requests'}</p>
-          {requests.length === 0 ? (
+          {historyError ? (
+            <div className="flex gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25">
+              <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[13px] text-red-400 leading-relaxed">
+                {historyError} Your requests and tips are safe — they just can’t be listed here
+                right now.
+              </p>
+            </div>
+          ) : requests.length === 0 ? (
             <div className="py-10 text-center">
               <Music2 size={24} className="mx-auto text-neutral-600 mb-3" />
               <p className="text-[14px] muted">

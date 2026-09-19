@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { AlertTriangle, Plus } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import RequestSheet from '../components/customer/RequestSheet';
 import SpotifyPrompt from '../components/customer/SpotifyPrompt';
@@ -23,6 +23,7 @@ const CustomerDashboard: React.FC = () => {
 
   const [walletBalance, setWalletBalance] = useState(0);
   const [requests, setRequests] = useState<SongRequest[]>([]);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
   const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [queue, setQueue] = useState<SongRequest[]>([]);
@@ -53,9 +54,23 @@ const CustomerDashboard: React.FC = () => {
       orderBy('timestamp', 'desc'),
       limit(20)
     );
-    return onSnapshot(q, (snap) => {
-      setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
+        setRequestsError(null);
+      },
+      // Without this the query could fail forever and the page would simply
+      // look like the user had never requested anything.
+      (err) => {
+        console.error('Requests listener failed:', err);
+        setRequestsError(
+          err.code === 'failed-precondition'
+            ? 'Your requests need a database index that has not been created yet.'
+            : 'Could not load your requests right now.'
+        );
+      }
+    );
   }, [user]);
 
   // The accepted queue, highest tip first — needed to work out where this
@@ -197,7 +212,14 @@ const CustomerDashboard: React.FC = () => {
           <div className="rule" />
 
           {/* the current request, or an empty state */}
-          {active ? (
+          {requestsError ? (
+            <section className="mt-6 flex gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25">
+              <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[13px] text-red-400 leading-relaxed">
+                {requestsError} Anything you’ve already sent is safe and the DJ can still see it.
+              </p>
+            </section>
+          ) : active ? (
             <section className="mt-6">
               <p className="label">Your request</p>
               <p className="text-[17px] font-bold tracking-[-0.02em] mt-2.5 leading-snug">
