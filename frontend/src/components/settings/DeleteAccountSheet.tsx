@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { clearSpotifyToken } from '../../utils/spotifyAuth';
 
 interface DeleteAccountSheetProps {
   open: boolean;
@@ -70,7 +69,6 @@ const DeleteAccountSheet: React.FC<DeleteAccountSheetProps> = ({
 
       // The auth user is gone server-side; clear the local session too so the
       // app does not sit holding a token for an account that no longer exists.
-      clearSpotifyToken();
       await logout().catch(() => {});
       navigate('/', { replace: true });
     } catch (err: any) {

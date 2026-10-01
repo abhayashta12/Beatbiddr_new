@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ChevronRight, Music2, Settings } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import { useAuth } from '../contexts/AuthContext';
-import { clearSpotifyToken } from '../utils/spotifyAuth';
 import type { SongRequest } from '../types';
 import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -71,7 +70,6 @@ const ProfilePage: React.FC = () => {
     .reduce((sum, r) => sum + r.tipAmount, 0);
 
   const handleLogout = async () => {
-    clearSpotifyToken();
     await logout();
     navigate('/');
   };

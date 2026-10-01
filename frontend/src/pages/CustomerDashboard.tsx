@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Plus } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import RequestSheet from '../components/customer/RequestSheet';
-import SpotifyPrompt from '../components/customer/SpotifyPrompt';
 import type { SongRequest, Song } from '../types';
-import { exchangeCodeForToken, getValidSpotifyToken } from '../utils/spotifyAuth';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -24,18 +22,8 @@ const CustomerDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [requests, setRequests] = useState<SongRequest[]>([]);
   const [requestsError, setRequestsError] = useState<string | null>(null);
-  const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [queue, setQueue] = useState<SongRequest[]>([]);
-  // Dismissal lasts the session — connecting is worth asking about again later
-  const [promptDismissed, setPromptDismissed] = useState(
-    () => sessionStorage.getItem('spotify_prompt_dismissed') === '1'
-  );
-
-  const dismissPrompt = () => {
-    sessionStorage.setItem('spotify_prompt_dismissed', '1');
-    setPromptDismissed(true);
-  };
 
   // Balance — written only by the server
   useEffect(() => {
@@ -91,19 +79,6 @@ const CustomerDashboard: React.FC = () => {
     );
   }, [user]);
 
-  // Spotify: finish the PKCE redirect, or restore a stored token
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('code');
-    if (code) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      exchangeCodeForToken(code)
-        .then(setSpotifyToken)
-        .catch((err) => console.error('Spotify token exchange failed:', err));
-      return;
-    }
-    getValidSpotifyToken().then((token) => token && setSpotifyToken(token));
-  }, []);
-
   const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
     if (!user) return;
     if (walletBalance < tipAmount) {
@@ -156,17 +131,6 @@ const CustomerDashboard: React.FC = () => {
               Neon Lounge · Live now
             </p>
           </header>
-
-          {/* Spotify — prominent until connected, then a quiet confirmation */}
-          {(!promptDismissed || spotifyToken) && (
-            <div className="mt-5">
-              <SpotifyPrompt
-                connected={Boolean(spotifyToken)}
-                variant="banner"
-                onDismiss={dismissPrompt}
-              />
-            </div>
-          )}
 
           {/* what the DJ is playing next — real data, top of the accepted queue */}
           {queue.length > 0 && (
@@ -286,7 +250,6 @@ const CustomerDashboard: React.FC = () => {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         onSubmit={handleRequestSubmit}
-        spotifyToken={spotifyToken}
         balance={walletBalance}
       />
     </>

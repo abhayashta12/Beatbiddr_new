@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { clearSpotifyToken, getValidSpotifyToken, redirectToSpotifyLogin } from '../utils/spotifyAuth';
 import EditFieldSheet, { type EditField } from '../components/settings/EditFieldSheet';
 import DeleteAccountSheet from '../components/settings/DeleteAccountSheet';
 
@@ -26,7 +25,6 @@ const SettingsPage: React.FC = () => {
   const [balance, setBalance] = useState(0);
   const [name, setName] = useState('');
   const [djProfile, setDjProfile] = useState<DJProfile>({});
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [editing, setEditing] = useState<EditField | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
@@ -42,10 +40,6 @@ const SettingsPage: React.FC = () => {
       setDjProfile((data.djProfile as DJProfile) ?? {});
     });
   }, [user]);
-
-  useEffect(() => {
-    getValidSpotifyToken().then((t) => setSpotifyConnected(Boolean(t)));
-  }, []);
 
   /** name lives outside the server-only fields, so the client may write it. */
   const saveName = async (value: string) => {
@@ -94,18 +88,8 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    clearSpotifyToken();
     await logout();
     navigate('/');
-  };
-
-  const handleSpotify = () => {
-    if (spotifyConnected) {
-      clearSpotifyToken();
-      setSpotifyConnected(false);
-    } else {
-      redirectToSpotifyLogin();
-    }
   };
 
   return (
@@ -235,17 +219,6 @@ const SettingsPage: React.FC = () => {
               </div>
             </>
           )}
-
-          {/* ---------- connections ---------- */}
-          <p className="label mb-2 mt-6">Connections</p>
-          <div className="card divide-y divide-white/[0.07]">
-            <Row
-              k="Spotify"
-              v={spotifyConnected ? 'Connected' : 'Not connected'}
-              accent={spotifyConnected}
-              onClick={handleSpotify}
-            />
-          </div>
 
           {/* ---------- money ---------- */}
           <p className="label mb-2 mt-6">Money</p>

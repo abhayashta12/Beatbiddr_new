@@ -83,7 +83,7 @@ const DOCS: Record<string, Doc> = {
           'From your Google sign-in: your name, email address and profile photo.',
           'If you are a DJ: your stage name, legal name, phone number, address and optionally your venue. We ask for these so fans know who they are tipping and so we can verify real DJs.',
           'Your activity: song requests, tip amounts, messages to DJs, and your wallet transaction history.',
-          'If you connect Spotify: read-only access to search and to your playlists. We never post anything to your Spotify account.',
+          'Nothing from Spotify. Song search is powered by Spotify’s catalogue through our own server, so you never connect a Spotify account and we never see or touch your Spotify data.',
         ],
       },
       {

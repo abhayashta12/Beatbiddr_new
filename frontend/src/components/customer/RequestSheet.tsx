@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Search, Loader2, ArrowRight } from 'lucide-react';
-import { searchSpotify } from '../../utils/spotifyApi';
-import SpotifyPrompt from './SpotifyPrompt';
+import { searchSongs } from '../../utils/songSearch';
 import type { Song } from '../../types';
 
 interface RequestSheetProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (song: Song, tipAmount: number, message: string) => Promise<void>;
-  spotifyToken: string | null;
   balance: number;
 }
 
@@ -18,23 +16,14 @@ const MIN_TIP = 1;
 const MAX_TIP = 1000;
 const TIP_PRESETS = [5, 10, 20, 50];
 
-const FALLBACK_SONGS: Song[] = [
-  { id: 'f1', title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', albumCover: '' },
-  { id: 'f2', title: 'Levitating', artist: 'Dua Lipa', album: 'Future Nostalgia', albumCover: '' },
-  { id: 'f3', title: 'One Kiss', artist: 'Calvin Harris, Dua Lipa', album: 'One Kiss', albumCover: '' },
-];
+const MIN_QUERY_LENGTH = 2;
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * Requesting happens in a sheet rather than on the page: it keeps every control
  * within thumb reach, and it rides above the keyboard when a field is focused.
  */
-const RequestSheet: React.FC<RequestSheetProps> = ({
-  open,
-  onClose,
-  onSubmit,
-  spotifyToken,
-  balance,
-}) => {
+const RequestSheet: React.FC<RequestSheetProps> = ({ open, onClose, onSubmit, balance }) => {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState('');
@@ -43,6 +32,8 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
   const [tipText, setTipText] = useState('10');
   const [message, setMessage] = useState('');
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const { tip, tipValid, tipProblem } = useMemo(() => {
@@ -82,8 +73,48 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
       setTipText('10');
       setMessage('');
       setSubmitting(false);
+      setSearchError(null);
+      setSearched(false);
     }
   }, [open]);
+
+  // Search as they type. Debounced, and an in-flight request is aborted when
+  // the query moves on, so results can never arrive out of order.
+  useEffect(() => {
+    if (!open || selected) return;
+    const q = query.trim();
+    if (q.length < MIN_QUERY_LENGTH) {
+      setResults([]);
+      setSearching(false);
+      setSearchError(null);
+      setSearched(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(() => {
+      searchSongs(q, controller.signal)
+        .then((songs) => {
+          setResults(songs);
+          setSearchError(null);
+          setSearched(true);
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return;
+          setResults([]);
+          setSearchError(err instanceof Error ? err.message : 'Could not search songs.');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, open, selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,28 +124,6 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
   }, [open, onClose]);
 
   if (!open) return null;
-
-  const runSearch = async () => {
-    const q = query.trim();
-    if (!q) return;
-    setSearching(true);
-    try {
-      if (spotifyToken) {
-        setResults(await searchSpotify(spotifyToken, q));
-      } else {
-        setResults(
-          FALLBACK_SONGS.filter((s) =>
-            `${s.title} ${s.artist}`.toLowerCase().includes(q.toLowerCase())
-          )
-        );
-      }
-    } catch (err) {
-      console.error('Search failed:', err);
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  };
 
   const handlePrimaryAction = async () => {
     // Not enough in the wallet — send them to top up rather than stranding
@@ -171,31 +180,35 @@ const RequestSheet: React.FC<RequestSheetProps> = ({
         </div>
 
         <div className="px-5 pb-5 pt-2 overflow-y-auto overscroll-contain flex flex-col gap-4">
-          {/* Caught here too: this is the moment someone discovers search only
-              knows three songs without Spotify. */}
-          {!spotifyToken && <SpotifyPrompt connected={false} variant="inline" />}
+          {/* search — runs as they type, no account to connect */}
+          <div>
+            <div className="relative">
+              <Search
+                size={17}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
+              />
+              <input
+                id="song-search"
+                type="search"
+                autoComplete="off"
+                maxLength={100}
+                className="input w-full pl-11 pr-11"
+                placeholder="Search any song or artist"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {searching && (
+                <Loader2
+                  size={16}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-neutral-500"
+                />
+              )}
+            </div>
 
-          {/* search */}
-          <div className="relative">
-            <Search
-              size={17}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
-            />
-            <input
-              id="song-search"
-              type="search"
-              className="input w-full pl-11 pr-20"
-              placeholder={spotifyToken ? 'Search Spotify' : 'Search songs'}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyUp={(e) => e.key === 'Enter' && runSearch()}
-            />
-            <button
-              onClick={runSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 text-[13px] font-bold text-white"
-            >
-              {searching ? <Loader2 size={16} className="animate-spin" /> : 'Search'}
-            </button>
+            {searchError && <p className="text-[12.5px] text-red-400 mt-2">{searchError}</p>}
+            {!searchError && searched && !searching && results.length === 0 && !selected && (
+              <p className="text-[12.5px] muted mt-2">No songs matched “{query.trim()}”.</p>
+            )}
           </div>
 
           {/* results */}
