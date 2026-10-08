@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Loader2, Smartphone, Check } from 'lucide-react';
-import { loadStripe, Stripe, PaymentRequest } from '@stripe/stripe-js';
+import { Loader2, Check } from 'lucide-react';
+import {
+  loadStripe,
+  type Stripe,
+  type PaymentRequest,
+  type StripeCardElement,
+} from '@stripe/stripe-js';
 import type { Transaction } from '../../types';
 import { auth } from '../../lib/firebase';
 
@@ -25,7 +30,22 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
   const [error, setError] = useState<string | null>(null);
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [canPayNative, setCanPayNative] = useState<boolean | null>(null);
+  const [stripe, setStripe] = useState<Stripe | null>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [cardComplete, setCardComplete] = useState(false);
   const prButtonRef = useRef<HTMLDivElement>(null);
+  const cardMountRef = useRef<HTMLDivElement>(null);
+  const cardElementRef = useRef<StripeCardElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    stripePromise.then((s) => {
+      if (!cancelled) setStripe(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { amount, cents, valid, problem } = useMemo(() => {
     const parsed = Number.parseFloat(amountText);
@@ -140,6 +160,92 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
     };
   }, [cents, valid]);
 
+  /**
+   * Card entry, mounted once and always present.
+   *
+   * Apple Pay and Google Pay only exist on some devices, and canMakePayment()
+   * returns null on a desktop browser, an Android without Google Pay set up,
+   * or an iPhone with no card in Wallet. Gating top-ups behind them meant
+   * those people could not add money at all, so card entry is the baseline
+   * and the native button is the shortcut layered on top.
+   *
+   * The fields live in Stripe's own iframe — card numbers never touch this
+   * page or our server.
+   */
+  useEffect(() => {
+    if (!stripe || !cardMountRef.current) return;
+
+    const elements = stripe.elements();
+    const card = elements.create('card', {
+      style: {
+        base: {
+          color: '#ffffff',
+          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+          fontSize: '16px',
+          '::placeholder': { color: '#6b7280' },
+          iconColor: '#9ca3af',
+        },
+        invalid: { color: '#f87171', iconColor: '#f87171' },
+      },
+    });
+    card.mount(cardMountRef.current);
+    card.on('change', (event) => {
+      setCardError(event.error?.message ?? null);
+      setCardComplete(event.complete);
+    });
+    cardElementRef.current = card;
+
+    return () => {
+      card.off('change');
+      card.unmount();
+      card.destroy();
+      cardElementRef.current = null;
+    };
+  }, [stripe]);
+
+  const handleCardPay = async () => {
+    const card = cardElementRef.current;
+    if (!stripe || !card || !valid || isProcessing) return;
+
+    setError(null);
+    setIsProcessing(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not signed in.');
+
+      const res = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ amount: cents }),
+      });
+      const { clientSecret, error: serverError } = await res.json();
+
+      if (serverError || !clientSecret) {
+        setError(serverError ?? 'Payment could not be started.');
+        return;
+      }
+
+      const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card },
+      });
+
+      if (confirmError) {
+        setError(confirmError.message ?? 'Payment failed.');
+        return;
+      }
+
+      // The webhook credits the wallet; the balance listener picks it up.
+      card.clear();
+      setCardComplete(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 6000);
+    } catch {
+      setError('Payment failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Mount Stripe's own button
   useEffect(() => {
     if (!paymentRequest || !prButtonRef.current) return;
@@ -237,31 +343,50 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
           </p>
         )}
 
-        {!valid ? (
-          <div className="h-[54px] rounded-xl border border-white/10 flex items-center justify-center">
-            <p className="text-[13.5px] text-neutral-500">
-              {problem ? 'Choose a valid amount' : 'Enter an amount'}
-            </p>
+        {/* Apple Pay / Google Pay when the device offers it — one tap, no typing */}
+        {valid && canPayNative && (
+          <div className={isProcessing ? 'opacity-50 pointer-events-none' : ''}>
+            <div ref={prButtonRef} />
+            <div className="flex items-center gap-3 my-5">
+              <span className="h-px flex-1 bg-white/10" />
+              <span className="text-[11.5px] text-neutral-500">or pay with card</span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
           </div>
-        ) : (
-          <>
-            {canPayNative && (
-              <div className={isProcessing ? 'opacity-50 pointer-events-none' : ''}>
-                <div ref={prButtonRef} />
-              </div>
-            )}
-
-            {canPayNative === false && (
-              <div className="py-8 text-center">
-                <Smartphone size={26} className="mx-auto text-neutral-600 mb-3" />
-                <p className="text-[14.5px] font-semibold">Apple Pay or Google Pay needed</p>
-                <p className="text-[13px] muted mt-1.5 max-w-[34ch] mx-auto leading-relaxed">
-                  Open BeatBiddr in Safari on iPhone, or Chrome with a saved card, to add funds.
-                </p>
-              </div>
-            )}
-          </>
         )}
+
+        {/* Card entry — always available, so no device is a dead end */}
+        <div
+          className={`rounded-xl border px-4 py-4 transition-colors ${
+            cardError ? 'border-red-500/60' : 'border-white/12 focus-within:border-brand-500'
+          }`}
+        >
+          <div ref={cardMountRef} />
+        </div>
+
+        {cardError && <p className="text-[12.5px] text-red-400 mt-2">{cardError}</p>}
+
+        <button
+          onClick={handleCardPay}
+          disabled={!valid || !cardComplete || isProcessing || !stripe}
+          className="btn-primary w-full mt-3 flex items-center justify-center disabled:opacity-40"
+        >
+          {isProcessing ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : !stripe ? (
+            'Loading payment…'
+          ) : !valid ? (
+            problem ? 'Choose a valid amount' : 'Enter an amount'
+          ) : !cardComplete ? (
+            'Enter your card details'
+          ) : (
+            `Add $${amount.toFixed(2)}`
+          )}
+        </button>
+
+        <p className="text-[11.5px] text-neutral-500 mt-3 text-center leading-relaxed">
+          Card details go straight to Stripe. BeatBiddr never sees or stores them.
+        </p>
       </section>
 
       {/* history */}
