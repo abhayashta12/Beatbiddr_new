@@ -36,7 +36,14 @@ const ProfilePage: React.FC = () => {
     if (!user) return;
     const q =
       role === 'dj'
-        ? query(collection(db, 'songRequests'), orderBy('tipAmount', 'desc'), limit(30))
+        ? query(
+            collection(db, 'songRequests'),
+            // Scoped to this DJ: the rules only permit reading a request you
+            // sent or received, so an unscoped query is rejected.
+            where('djId', '==', user.uid),
+            orderBy('tipAmount', 'desc'),
+            limit(30)
+          )
         : query(
             collection(db, 'songRequests'),
             where('requester.id', '==', user.uid),

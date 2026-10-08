@@ -35,6 +35,7 @@ const RequestSheet: React.FC<RequestSheetProps> = ({ open, onClose, onSubmit, ba
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const { tip, tipValid, tipProblem } = useMemo(() => {
     const parsed = Number.parseFloat(tipText);
@@ -75,6 +76,7 @@ const RequestSheet: React.FC<RequestSheetProps> = ({ open, onClose, onSubmit, ba
       setSubmitting(false);
       setSearchError(null);
       setSearched(false);
+      setSubmitError(null);
     }
   }, [open]);
 
@@ -135,9 +137,14 @@ const RequestSheet: React.FC<RequestSheetProps> = ({ open, onClose, onSubmit, ba
     }
     if (!selected || !tipValid || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onSubmit(selected, tip, message);
       onClose();
+    } catch (err: unknown) {
+      // Stay open and say why. Closing on failure made a rejected request
+      // look like a sent one.
+      setSubmitError(err instanceof Error ? err.message : 'Could not send your request.');
     } finally {
       setSubmitting(false);
     }
@@ -320,6 +327,10 @@ const RequestSheet: React.FC<RequestSheetProps> = ({ open, onClose, onSubmit, ba
               onChange={(e) => setMessage(e.target.value)}
             />
           </div>
+
+          {submitError && (
+            <p className="text-[13px] text-red-400 leading-relaxed -mb-1">{submitError}</p>
+          )}
 
           {/* action */}
           <button

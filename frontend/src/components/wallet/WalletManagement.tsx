@@ -403,7 +403,13 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
               >
                 <div className="min-w-0">
                   <p className="text-[14px] font-semibold truncate">
-                    {t.type === 'deposit' ? 'Added funds' : t.song ? t.song.title : 'Tip'}
+                    {t.type === 'deposit'
+                      ? 'Added funds'
+                      : t.type === 'refund'
+                      ? `Refund · ${t.song?.title ?? 'request'}`
+                      : t.song
+                      ? t.song.title
+                      : 'Tip'}
                   </p>
                   <p className="text-[12px] muted">
                     {new Date(t.timestamp).toLocaleString([], {
@@ -414,12 +420,14 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
                     })}
                   </p>
                 </div>
+                {/* A refund is money coming back, so it reads as a credit. */}
                 <span
                   className={`text-[14px] font-bold tnum shrink-0 ${
-                    t.type === 'deposit' ? 'text-brand-500' : ''
+                    t.type === 'deposit' || t.type === 'refund' ? 'text-brand-500' : ''
                   }`}
                 >
-                  {t.type === 'deposit' ? '+' : '−'}${t.amount.toFixed(2)}
+                  {t.type === 'deposit' || t.type === 'refund' ? '+' : '−'}$
+                  {t.amount.toFixed(2)}
                 </span>
               </li>
             ))}

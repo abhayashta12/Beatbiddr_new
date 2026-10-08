@@ -131,8 +131,8 @@ const DOCS: Record<string, Doc> = {
       {
         heading: 'Rejected requests',
         body: [
-          'If a DJ rejects your request, the tip is returned to your BeatBiddr balance.',
-          'Automatic refunds are still being rolled out. If a rejected request has not been credited back, contact us and we will put it right.',
+          'If a DJ rejects your request, the tip is returned to your BeatBiddr balance automatically. The refund happens at the same moment the request is rejected, and it appears in your wallet activity as a refund.',
+          'If a rejected request has somehow not been credited back, contact us and we will put it right.',
         ],
       },
       {

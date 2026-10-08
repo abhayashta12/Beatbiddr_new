@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Check, X, Play } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import type { SongRequest } from '../types';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy, where, limit } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { collection, onSnapshot, query, orderBy, where, limit } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 type Tab = 'incoming' | 'queue';
 
@@ -15,14 +16,20 @@ const ACTIVE_STATUSES: SongRequest['status'][] = ['pending', 'accepted', 'played
 const MAX_REQUESTS = 200;
 
 const DJDashboardPage: React.FC = () => {
+  const { user } = useAuth();
   const [requests, setRequests] = useState<SongRequest[]>([]);
   const [tab, setTab] = useState<Tab>('incoming');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user) return;
+    // Scoped to this DJ. The rules require it — a request may only be read by
+    // the fan who sent it or the DJ it was sent to, so an unscoped query is
+    // rejected outright rather than quietly returning everyone's.
     const q = query(
       collection(db, 'songRequests'),
+      where('djId', '==', user.uid),
       where('status', 'in', ACTIVE_STATUSES),
       orderBy('tipAmount', 'desc'),
       limit(MAX_REQUESTS)
@@ -43,7 +50,7 @@ const DJDashboardPage: React.FC = () => {
         );
       }
     );
-  }, []);
+  }, [user]);
 
   const pending = requests.filter((r) => r.status === 'pending');
   const accepted = requests.filter((r) => r.status === 'accepted');
@@ -52,15 +59,32 @@ const DJDashboardPage: React.FC = () => {
     .filter((r) => r.status === 'accepted' || r.status === 'played')
     .reduce((sum, r) => sum + r.tipAmount, 0);
 
+  /**
+   * Goes through the server, not straight to Firestore. The endpoint checks
+   * the request was sent to this DJ and, on a rejection, returns the tip to
+   * the fan in the same transaction as the status change.
+   */
   const setStatus = async (id: string, status: SongRequest['status']) => {
     setBusyId(id);
     setError(null);
     try {
-      await updateDoc(doc(db, 'songRequests', id), { status });
-    } catch (err) {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Please sign in again.');
+
+      const res = await fetch('/api/update-request-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ requestId: id, status }),
+      });
+
+      if (!res.ok) {
+        const { error: serverError } = await res.json().catch(() => ({ error: null }));
+        throw new Error(serverError ?? 'That did not save.');
+      }
+    } catch (err: any) {
       console.error('Could not update request:', err);
       // A tap that silently did nothing is worse than an error.
-      setError('That did not save. Check your connection and try again.');
+      setError(err?.message ?? 'That did not save. Check your connection and try again.');
     } finally {
       setBusyId(null);
     }

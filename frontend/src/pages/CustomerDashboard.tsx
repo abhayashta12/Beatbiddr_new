@@ -7,6 +7,7 @@ import type { SongRequest, Song } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { getSelectedDJ, clearSelectedDJ } from '../utils/selectedDJ';
 
 const statusCopy: Record<SongRequest['status'], string> = {
   pending: 'Waiting on the DJ',
@@ -14,6 +15,24 @@ const statusCopy: Record<SongRequest['status'], string> = {
   played: 'Played',
   rejected: 'Not played · refunded',
 };
+
+interface DJPublic {
+  uid: string;
+  username: string;
+  stageName: string;
+  club: string;
+  isLive: boolean;
+}
+
+/** The identity-free queue mirror — no requester name, no message. */
+interface QueueEntry {
+  id: string;
+  djId: string;
+  status: SongRequest['status'];
+  tipAmount: number;
+  title: string;
+  artist: string;
+}
 
 const CustomerDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -23,7 +42,9 @@ const CustomerDashboard: React.FC = () => {
   const [requests, setRequests] = useState<SongRequest[]>([]);
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [queue, setQueue] = useState<SongRequest[]>([]);
+  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [djId, setDjId] = useState<string | null>(() => getSelectedDJ());
+  const [dj, setDj] = useState<DJPublic | null>(null);
 
   // Balance — written only by the server
   useEffect(() => {
@@ -61,53 +82,80 @@ const CustomerDashboard: React.FC = () => {
     );
   }, [user]);
 
-  // The accepted queue, highest tip first — needed to work out where this
-  // user sits in line. Computing it from their own requests alone would give
-  // a position that is always 1.
+  // Who the fan is with. The public mirror carries no identity data.
   useEffect(() => {
-    if (!user) return;
+    if (!djId) {
+      setDj(null);
+      return;
+    }
+    return onSnapshot(
+      doc(db, 'djs', djId),
+      (snap) => {
+        if (snap.exists()) {
+          setDj({ uid: snap.id, ...(snap.data() as Omit<DJPublic, 'uid'>) });
+        } else {
+          // The DJ deleted their account — don't strand the fan on a ghost.
+          clearSelectedDJ();
+          setDjId(null);
+          setDj(null);
+        }
+      },
+      (err) => console.error('DJ listener failed:', err)
+    );
+  }, [djId]);
+
+  // This DJ's accepted queue, highest tip first, so the fan can see where they
+  // sit. Read from queueEntries rather than songRequests: the rules only let
+  // someone read a request they sent or received, and this needs everyone's.
+  useEffect(() => {
+    if (!user || !djId) {
+      setQueue([]);
+      return;
+    }
     const q = query(
-      collection(db, 'songRequests'),
+      collection(db, 'queueEntries'),
+      where('djId', '==', djId),
       where('status', '==', 'accepted'),
       orderBy('tipAmount', 'desc'),
       limit(50)
     );
     return onSnapshot(
       q,
-      (snap) => setQueue(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) }))),
+      (snap) => setQueue(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<QueueEntry, 'id'>) }))),
       (err) => console.error('Queue listener failed:', err)
     );
-  }, [user]);
+  }, [user, djId]);
 
+  /**
+   * Throws on failure so the request sheet can keep itself open and show the
+   * reason. It used to swallow every error, which meant the sheet closed as
+   * though the request had been sent.
+   */
   const handleRequestSubmit = async (song: Song, tipAmount: number, message: string) => {
-    if (!user) return;
+    if (!user) throw new Error('Please sign in again.');
+    if (!djId) throw new Error('Choose a DJ first.');
     if (walletBalance < tipAmount) {
       navigate('/wallet');
       return;
     }
 
-    try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Not signed in.');
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Please sign in again.');
 
-      const res = await fetch('/api/submit-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ song, tipAmount, message }),
-      });
+    const res = await fetch('/api/submit-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ djId, song, tipAmount, message }),
+    });
 
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: null }));
-        if (res.status === 402) {
-          navigate('/wallet');
-        } else {
-          alert(error ?? 'Could not send your request. Please try again.');
-        }
-      }
-    } catch (err) {
-      console.error('Request submission failed:', err);
-      alert('Could not reach the server. Check your connection and try again.');
+    if (res.ok) return;
+
+    const { error } = await res.json().catch(() => ({ error: null }));
+    if (res.status === 402) {
+      navigate('/wallet');
+      return;
     }
+    throw new Error(error ?? 'Could not send your request. Please try again.');
   };
 
   const active = requests.find((r) => r.status === 'pending' || r.status === 'accepted');
@@ -124,32 +172,49 @@ const CustomerDashboard: React.FC = () => {
           {/* who you're with */}
           <header>
             <h1 className="text-[26px] font-extrabold tracking-[-0.035em] leading-tight">
-              DJ Spinz
+              {dj ? dj.stageName : 'Pick a DJ'}
             </h1>
-            <p className="text-[13px] muted mt-0.5 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block" />
-              Neon Lounge · Live now
-            </p>
+            {dj ? (
+              <button
+                onClick={() => navigate('/discover')}
+                className="text-[13px] muted mt-0.5 flex items-center gap-2"
+              >
+                {dj.isLive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-500 inline-block shrink-0" />
+                )}
+                <span className="truncate">
+                  {dj.club ? `${dj.club} · ` : ''}
+                  {dj.isLive ? 'Live now' : 'Not playing'}
+                </span>
+                <span className="text-brand-500 font-semibold shrink-0">Change</span>
+              </button>
+            ) : (
+              <p className="text-[13px] muted mt-0.5">Choose who you’re listening to tonight.</p>
+            )}
           </header>
 
-          {/* what the DJ is playing next — real data, top of the accepted queue */}
-          {queue.length > 0 && (
+          {/* No DJ chosen yet — nothing else on this page means anything */}
+          {!dj && (
+            <section className="mt-8">
+              <p className="text-[13.5px] muted leading-relaxed max-w-[34ch]">
+                Requests go to one DJ at a time. Pick the one you’re with and your songs land in
+                their queue.
+              </p>
+              <button onClick={() => navigate('/discover')} className="btn-primary mt-6 px-6 py-3">
+                Find your DJ
+              </button>
+            </section>
+          )}
+
+          {/* what the DJ is playing next — top of their accepted queue */}
+          {dj && queue.length > 0 && (
             <section className="card p-4 mt-6 flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-dark-300 shrink-0 overflow-hidden">
-                {queue[0].song.albumCover && (
-                  <img
-                    src={queue[0].song.albumCover}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
               <div className="min-w-0 flex-1">
                 <p className="label mb-1">Up next</p>
                 <p className="text-[15px] font-bold tracking-[-0.02em] truncate leading-tight">
-                  {queue[0].song.title}
+                  {queue[0].title}
                 </p>
-                <p className="text-[12.5px] muted truncate">{queue[0].song.artist}</p>
+                <p className="text-[12.5px] muted truncate">{queue[0].artist}</p>
               </div>
               <span className="flex gap-[3px] items-end h-4 shrink-0" aria-hidden="true">
                 <span className="w-[3px] h-2 bg-brand-500 rounded-full" />
@@ -210,14 +275,14 @@ const CustomerDashboard: React.FC = () => {
                 </span>
               </div>
             </section>
-          ) : (
+          ) : dj ? (
             <section className="mt-8">
               <p className="text-[17px] font-bold tracking-[-0.025em]">Nothing in the queue</p>
               <p className="text-[13.5px] muted mt-1.5 max-w-[34ch] leading-relaxed">
                 Pick a track and add a tip. The bigger the tip, the sooner it plays.
               </p>
             </section>
-          )}
+          ) : null}
 
           {/* recent history, quietly */}
           {requests.length > (active ? 1 : 0) && (
@@ -237,12 +302,14 @@ const CustomerDashboard: React.FC = () => {
             </section>
           )}
 
-          {/* primary action */}
-          <div className="mt-auto pt-10">
-            <button onClick={() => setSheetOpen(true)} className="btn-primary w-full">
-              Request a song
-            </button>
-          </div>
+          {/* primary action — meaningless without a DJ to send it to */}
+          {dj && (
+            <div className="mt-auto pt-10">
+              <button onClick={() => setSheetOpen(true)} className="btn-primary w-full">
+                Request a song
+              </button>
+            </div>
+          )}
         </div>
       </AppShell>
 

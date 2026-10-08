@@ -35,11 +35,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json({ error: 'That is a lot of requests. Give it a few minutes.' });
   }
 
-  const { song, tipAmount, message } = req.body as {
+  const { djId, song, tipAmount, message } = req.body as {
+    djId?: string;
     song?: SongPayload;
     tipAmount?: number;
     message?: string;
   };
+
+  if (typeof djId !== 'string' || !djId || djId.length > 128) {
+    return res.status(400).json({ error: 'Choose a DJ first.' });
+  }
 
   if (
     !song || typeof song.id !== 'string' || typeof song.title !== 'string' ||
@@ -68,14 +73,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const tip = Math.round(tipAmount * 100) / 100;
   const db = adminDb();
   const userRef = db.collection('users').doc(uid);
+  const djRef = db.collection('djs').doc(djId);
   const requestRef = db.collection('songRequests').doc();
   const ledgerRef = userRef.collection('ledger').doc();
+  // Identity-free mirror so a fan can work out their queue position without
+  // being able to read other people's names or messages.
+  const queueRef = db.collection('queueEntries').doc(requestRef.id);
   const timestamp = new Date().toISOString();
 
   try {
     await db.runTransaction(async (tx) => {
-      const userSnap = await tx.get(userRef);
+      const [userSnap, djSnap] = await Promise.all([tx.get(userRef), tx.get(djRef)]);
       if (!userSnap.exists) throw Object.assign(new Error('User not found.'), { status: 404 });
+
+      // The DJ must actually exist. Without this check a crafted request could
+      // park rows under any djId, including one that is simply made up.
+      if (!djSnap.exists) {
+        throw Object.assign(new Error('That DJ is no longer available.'), { status: 404 });
+      }
 
       const user = userSnap.data()!;
       if (user.role !== 'customer') {
@@ -87,7 +102,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       tx.update(userRef, { walletBalance: FieldValue.increment(-tip) });
+      tx.set(queueRef, {
+        djId,
+        status: 'pending',
+        tipAmount: tip,
+        title: song.title,
+        artist: song.artist,
+        timestamp,
+      });
       tx.set(requestRef, {
+        djId,
         song: {
           id: song.id,
           title: song.title,

@@ -63,18 +63,33 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Song requests are created server-side only (atomic debit via /api/submit-request).
-    // DJs may update status; requesters and DJs may read.
+    // Song requests carry a fan's display name and their message to the DJ,
+    // so only the two parties involved may read one: the fan who sent it and
+    // the DJ it was sent to.
+    //
+    // This also constrains queries. Firestore only allows a query it can prove
+    // safe for every possible result, so a listener MUST filter by
+    // requester.id or djId — which is exactly the scoping we want.
+    //
+    // All writes are server-side. Status changes go through
+    // /api/update-request-status, which checks that the request was sent to
+    // the caller and refunds the tip on a rejection in the same transaction.
     match /songRequests/{requestId} {
+      allow read: if isSignedIn()
+        && (
+          resource.data.requester.id == request.auth.uid
+          || resource.data.djId == request.auth.uid
+        );
+
+      allow create, update, delete: if false;
+    }
+
+    // Identity-free mirror of the queue: dj, status, tip, title, artist — no
+    // requester name and no message. This is what lets a fan work out their
+    // position in line without being able to read anyone else's request.
+    match /queueEntries/{requestId} {
       allow read: if isSignedIn();
-
-      allow create: if false;
-
-      allow update: if isDJ()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && request.resource.data.status in ['accepted', 'rejected', 'played'];
-
-      allow delete: if false;
+      allow write: if false;
     }
 
     // Rate-limit counters, written only by the Admin SDK. Unmatched paths are

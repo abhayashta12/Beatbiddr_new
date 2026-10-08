@@ -8,6 +8,8 @@ export interface Song {
 
 export interface SongRequest {
   id: string;
+  /** The DJ this request was sent to. Requests are never a global pool. */
+  djId: string;
   song: Song;
   requester: {
     id: string;
@@ -33,7 +35,7 @@ export interface DJ {
 
 export interface Transaction {
   id: string;
-  type: 'deposit' | 'tip' | 'withdrawal';
+  type: 'deposit' | 'tip' | 'withdrawal' | 'refund';
   amount: number;
   timestamp: string;
   recipient?: string;
