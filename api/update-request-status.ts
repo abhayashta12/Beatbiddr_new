@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
 import { checkRateLimit } from './_lib/rateLimit';
 import { FieldValue } from 'firebase-admin/firestore';
+import { planStatusChange } from './_lib/requestStatus';
 
 /**
  * A DJ accepting, rejecting or playing a request.
@@ -15,16 +16,6 @@ import { FieldValue } from 'firebase-admin/firestore';
  * rejection refunds inside the same transaction that changes the status, so a
  * request can never end up rejected-but-unrefunded.
  */
-
-type Status = 'pending' | 'accepted' | 'rejected' | 'played';
-
-/** Only these moves are legal. Anything else is a no. */
-const ALLOWED_TRANSITIONS: Record<Status, Status[]> = {
-  pending: ['accepted', 'rejected'],
-  accepted: ['played', 'rejected'],
-  played: [],
-  rejected: [],
-};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -65,62 +56,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const request = snap.data()!;
+      const plan = planStatusChange(request, uid, status);
 
-      // The only authorisation that matters: this request was sent to you.
-      if (request.djId !== uid) {
-        throw Object.assign(new Error('That request was not sent to you.'), { status: 403 });
+      if (plan.error) {
+        throw Object.assign(new Error(plan.error.message), { status: plan.error.status });
       }
-
-      const current = (request.status ?? 'pending') as Status;
-      if (current === status) {
-        // Idempotent: a double tap is not an error.
+      if (plan.idempotent) {
         return { status, refunded: 0 };
-      }
-      if (!ALLOWED_TRANSITIONS[current]?.includes(status)) {
-        throw Object.assign(
-          new Error(`A ${current} request cannot be marked ${status}.`),
-          { status: 409 }
-        );
       }
 
       // Every read must happen before the first write — Firestore rejects a
-      // transaction that reads after writing. So work out the refund target
-      // now, before touching anything.
-      const tip = typeof request.tipAmount === 'number' ? request.tipAmount : 0;
-      const requesterId = request.requester?.id;
-      const refundable =
-        status === 'rejected' &&
-        tip > 0 &&
-        typeof requesterId === 'string' &&
-        Boolean(requesterId) &&
-        requesterId !== 'deleted';
-
-      const requesterRef = refundable ? db.collection('users').doc(requesterId) : null;
-      // Nothing is written before this read completes.
+      // transaction that reads after writing. So resolve the refund target
+      // before touching anything.
+      const requesterRef = plan.refund
+        ? db.collection('users').doc(plan.refund.requesterId)
+        : null;
       const requesterSnap = requesterRef ? await tx.get(requesterRef) : null;
 
       // ---- writes from here on ----
       tx.update(requestRef, { status });
       tx.set(queueRef, { status }, { merge: true });
 
-      if (!requesterRef || !requesterSnap?.exists) {
-        // Either not a rejection, nothing to give back, or the account is
-        // gone. Still a valid status change.
+      if (!plan.refund || !requesterRef || !requesterSnap?.exists) {
+        // Not a rejection, nothing to give back, or the account is gone.
+        // Still a valid status change.
         return { status, refunded: 0 };
       }
 
-      tx.update(requesterRef, { walletBalance: FieldValue.increment(tip) });
+      tx.update(requesterRef, { walletBalance: FieldValue.increment(plan.refund.amount) });
       // Ledger id is derived from the request, so a retry writes the same
       // document rather than crediting twice.
       tx.set(requesterRef.collection('ledger').doc(`refund_${requestId}`), {
         type: 'refund',
-        amount: tip,
+        amount: plan.refund.amount,
         song: { title: request.song?.title ?? '', artist: request.song?.artist ?? '' },
         requestId,
         timestamp: new Date().toISOString(),
       });
 
-      return { status, refunded: tip };
+      return { status, refunded: plan.refund.amount };
     });
 
     return res.status(200).json(result);

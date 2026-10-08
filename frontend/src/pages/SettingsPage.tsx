@@ -215,7 +215,6 @@ const SettingsPage: React.FC = () => {
                     />
                   </button>
                 </div>
-                <Row k="Auto-accept above" v="Soon" muted />
               </div>
             </>
           )}
@@ -225,8 +224,15 @@ const SettingsPage: React.FC = () => {
           <div className="card divide-y divide-white/[0.07]">
             {isDJ ? (
               <>
-                <Row k="Payouts" v="Soon" muted />
                 <Row k="Earnings" v="View" onClick={() => navigate('/dj')} />
+                {/* Honest about the one thing a DJ most wants to know. */}
+                <div className="px-4 py-3.5">
+                  <p className="text-[14px] font-semibold">Payouts</p>
+                  <p className="text-[11.5px] muted mt-1 leading-relaxed">
+                    Tips are being tracked against your account. Automatic payouts aren’t live
+                    yet — contact us to be paid out.
+                  </p>
+                </div>
               </>
             ) : (
               <Row

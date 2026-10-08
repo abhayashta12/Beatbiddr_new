@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import UpdateBanner from './components/layout/UpdateBanner';
@@ -115,6 +116,9 @@ function App() {
         <AppRoutes />
         {/* Sits outside the routes so it survives navigation */}
         <UpdateBanner />
+        {/* Page views only — no cookies, no cross-site identifiers. Inert
+            until Web Analytics is switched on in the Vercel dashboard. */}
+        <Analytics />
       </Router>
     </AuthProvider>
   );

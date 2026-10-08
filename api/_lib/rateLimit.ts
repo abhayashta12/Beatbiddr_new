@@ -31,6 +31,37 @@ export interface RateLimitOptions {
   windowSeconds: number;
 }
 
+export type RateLimitDecision =
+  | { kind: 'start-window' }
+  | { kind: 'increment' }
+  | { kind: 'refuse'; retryAfter: number };
+
+/**
+ * The window arithmetic, separated from Firestore so it can be tested.
+ *
+ * `windowStartMs` is null when no counter exists yet.
+ */
+export function decideRateLimit(
+  windowStartMs: number | null,
+  count: number,
+  nowMs: number,
+  limit: number,
+  windowSeconds: number
+): RateLimitDecision {
+  if (windowStartMs === null) return { kind: 'start-window' };
+
+  const elapsed = nowMs - windowStartMs;
+  if (elapsed >= windowSeconds * 1000) return { kind: 'start-window' };
+
+  if (count >= limit) {
+    // Never report 0 — a Retry-After of 0 invites an immediate retry.
+    const retryAfter = Math.max(1, Math.ceil((windowSeconds * 1000 - elapsed) / 1000));
+    return { kind: 'refuse', retryAfter };
+  }
+
+  return { kind: 'increment' };
+}
+
 export async function checkRateLimit(
   uid: string,
   { action, limit, windowSeconds }: RateLimitOptions
@@ -43,24 +74,23 @@ export async function checkRateLimit(
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const data = snap.data();
-      const windowStart = (data?.windowStart as Timestamp | undefined)?.toMillis() ?? 0;
+      const windowStart = snap.exists
+        ? (data?.windowStart as Timestamp | undefined)?.toMillis() ?? 0
+        : null;
       const count = typeof data?.count === 'number' ? data.count : 0;
-      const elapsed = now - windowStart;
 
-      // Window expired (or first ever call): start a new one.
-      if (!snap.exists || elapsed >= windowSeconds * 1000) {
+      const decision = decideRateLimit(windowStart, count, now, limit, windowSeconds);
+
+      if (decision.kind === 'refuse') {
+        return { allowed: false, retryAfter: decision.retryAfter };
+      }
+      if (decision.kind === 'start-window') {
         tx.set(ref, {
           count: 1,
           windowStart: Timestamp.fromMillis(now),
           updatedAt: FieldValue.serverTimestamp(),
         });
         return { allowed: true, retryAfter: 0 };
-      }
-
-      const retryAfter = Math.max(1, Math.ceil((windowSeconds * 1000 - elapsed) / 1000));
-
-      if (count >= limit) {
-        return { allowed: false, retryAfter };
       }
 
       tx.update(ref, { count: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
