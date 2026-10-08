@@ -1,34 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Play } from 'lucide-react';
+import { AlertTriangle, Check, X, Play } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import type { SongRequest } from '../types';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 type Tab = 'incoming' | 'queue';
+
+// Rejected requests are excluded — they are refundable, not earned. Played
+// ones are kept so marking a song played does not erase it from the night's
+// total. The cap stops the listener re-reading an unbounded collection on
+// every snapshot.
+const ACTIVE_STATUSES: SongRequest['status'][] = ['pending', 'accepted', 'played'];
+const MAX_REQUESTS = 200;
 
 const DJDashboardPage: React.FC = () => {
   const [requests, setRequests] = useState<SongRequest[]>([]);
   const [tab, setTab] = useState<Tab>('incoming');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'songRequests'), orderBy('tipAmount', 'desc'));
-    return onSnapshot(q, (snap) => {
-      setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
-    });
+    const q = query(
+      collection(db, 'songRequests'),
+      where('status', 'in', ACTIVE_STATUSES),
+      orderBy('tipAmount', 'desc'),
+      limit(MAX_REQUESTS)
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        setRequests(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SongRequest, 'id'>) })));
+        setError(null);
+      },
+      // Never leave a failed query looking like a quiet night.
+      (err) => {
+        console.error('Requests listener failed:', err);
+        setError(
+          err.code === 'failed-precondition'
+            ? 'This list needs a database index that has not been created yet.'
+            : 'Could not load requests. Pull to refresh or sign in again.'
+        );
+      }
+    );
   }, []);
 
   const pending = requests.filter((r) => r.status === 'pending');
   const accepted = requests.filter((r) => r.status === 'accepted');
-  const earnings = accepted.reduce((sum, r) => sum + r.tipAmount, 0);
+  // Accepted and played both count — the tip was already taken from the fan.
+  const earnings = requests
+    .filter((r) => r.status === 'accepted' || r.status === 'played')
+    .reduce((sum, r) => sum + r.tipAmount, 0);
 
   const setStatus = async (id: string, status: SongRequest['status']) => {
     setBusyId(id);
+    setError(null);
     try {
       await updateDoc(doc(db, 'songRequests', id), { status });
     } catch (err) {
       console.error('Could not update request:', err);
+      // A tap that silently did nothing is worse than an error.
+      setError('That did not save. Check your connection and try again.');
     } finally {
       setBusyId(null);
     }
@@ -48,6 +80,13 @@ const DJDashboardPage: React.FC = () => {
             {accepted.length} accepted · {pending.length} waiting
           </p>
         </header>
+
+        {error && (
+          <div className="flex gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 mt-5">
+            <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-red-400 leading-relaxed">{error}</p>
+          </div>
+        )}
 
         {/* up next — the highest tip in the accepted queue */}
         {accepted.length > 0 && (
