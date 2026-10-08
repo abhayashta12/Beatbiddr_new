@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
 
 /**
  * Song search, server-side.
@@ -87,6 +88,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = await verifyCaller(req);
   if (!uid) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Search runs on every keystroke pause, so the ceiling is high — it exists
+  // to stop a script burning our Spotify quota, not to slow down typing.
+  const limited = await checkRateLimit(uid, {
+    action: 'search',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfter));
+    return res.status(429).json({ error: 'Slow down a moment, then search again.' });
   }
 
   const raw = req.query.q;

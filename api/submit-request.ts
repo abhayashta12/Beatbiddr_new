@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
 import { FieldValue } from 'firebase-admin/firestore';
 
 interface SongPayload {
@@ -18,6 +19,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = await verifyCaller(req);
   if (!uid) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Generous enough for an enthusiastic night out, tight enough that a script
+  // cannot spam a DJ's queue or drain a wallet in a loop.
+  const limited = await checkRateLimit(uid, {
+    action: 'submit-request',
+    limit: 20,
+    windowSeconds: 300,
+  });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfter));
+    return res
+      .status(429)
+      .json({ error: 'That is a lot of requests. Give it a few minutes.' });
   }
 
   const { song, tipAmount, message } = req.body as {

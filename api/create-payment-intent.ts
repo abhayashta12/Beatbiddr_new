@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 import { verifyCaller } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
@@ -13,6 +14,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = await verifyCaller(req);
   if (!uid) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Each intent is a Stripe API call and a card-testing opportunity. Nobody
+  // legitimately tops up ten times in five minutes.
+  const limited = await checkRateLimit(uid, {
+    action: 'payment-intent',
+    limit: 10,
+    windowSeconds: 300,
+  });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfter));
+    return res
+      .status(429)
+      .json({ error: 'Too many payment attempts. Please wait a few minutes.' });
   }
 
   const { amount } = req.body as { amount?: number };

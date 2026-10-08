@@ -67,5 +67,12 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    // Rate-limit counters, written only by the Admin SDK. Unmatched paths are
+    // denied by default; this is explicit so nobody later assumes otherwise
+    // and so a client cannot read its own remaining budget.
+    match /rateLimits/{bucket} {
+      allow read, write: if false;
+    }
   }
 }
