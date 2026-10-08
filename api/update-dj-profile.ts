@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
+import { PUBLIC_DJ_FIELDS, buildDJPublic } from './_lib/djPublic';
 
 const PHONE_RE = /^\+?[\d\s\-()]{7,15}$/;
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : undefined);
@@ -83,7 +84,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(409).json({ error: 'Finish setting up your DJ profile first.' });
     }
 
-    await userRef.update(updates);
+    // Rebuild the public mirror in full from the merged profile, rather than
+    // patching it. A partial merge would create a nameless mirror doc for any
+    // DJ whose profile predates this collection.
+    const mergedProfile: Record<string, unknown> = { ...(user.djProfile ?? {}) };
+    for (const field of PUBLIC_DJ_FIELDS) {
+      const value = updates[`djProfile.${field}`];
+      if (value !== undefined) mergedProfile[field] = value;
+    }
+
+    const batch = adminDb().batch();
+    batch.update(userRef, updates);
+    batch.set(adminDb().collection('djs').doc(uid), buildDJPublic(uid, mergedProfile));
+    await batch.commit();
+
     return res.status(200).json({ updated: Object.keys(updates).length });
   } catch (err: any) {
     console.error('update-dj-profile failed:', err.message);

@@ -54,6 +54,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Public DJ directory for Discover. Written only by the server, from an
+    // allowlist (api/_lib/djPublic.ts) — stage name, venue and live status.
+    // Legal name, phone, address and email stay in users/{uid}, which only
+    // that user can read.
+    match /djs/{djId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     // Song requests are created server-side only (atomic debit via /api/submit-request).
     // DJs may update status; requesters and DJs may read.
     match /songRequests/{requestId} {

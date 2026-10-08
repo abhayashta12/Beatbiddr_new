@@ -76,10 +76,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // 3 — remove the profile and its ledger subcollection
+    // 3 — remove the public DJ mirror, or a deleted account keeps showing up
+    // in Discover. Harmless no-op for a customer, who never had one.
+    await db.collection('djs').doc(uid).delete();
+
+    // 4 — remove the profile and its ledger subcollection
     await db.recursiveDelete(userRef);
 
-    // 4 — finally the auth user
+    // 5 — finally the auth user
     await adminAuth().deleteUser(uid);
 
     console.log(`Account ${uid} deleted (${anonymised} requests anonymised).`);

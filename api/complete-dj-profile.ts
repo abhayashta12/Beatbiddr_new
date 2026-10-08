@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
+import { buildDJPublic } from './_lib/djPublic';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 const PHONE_RE = /^\+?[\d\s\-()]{7,15}$/;
@@ -47,6 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const db = adminDb();
   const userRef = db.collection('users').doc(uid);
   const usernameRef = db.collection('djUsernames').doc(username);
+  const djPublicRef = db.collection('djs').doc(uid);
 
   try {
     await db.runTransaction(async (tx) => {
@@ -75,20 +77,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       }
 
+      const djProfile = {
+        username,
+        stageName,
+        legalName,
+        phone,
+        address,
+        club,
+        email: user.email ?? null,
+        verified: false,
+        isLive: false,
+      };
+
       tx.set(usernameRef, { uid, claimedAt: new Date().toISOString() });
-      tx.update(userRef, {
-        djProfile: {
-          username,
-          stageName,
-          legalName,
-          phone,
-          address,
-          club,
-          email: user.email ?? null,
-          verified: false,
-        },
-        djProfileComplete: true,
-      });
+      tx.update(userRef, { djProfile, djProfileComplete: true });
+      // Public mirror for Discover. Identity fields are filtered out by
+      // buildDJPublic, which is an allowlist.
+      tx.set(djPublicRef, buildDJPublic(uid, djProfile));
     });
 
     return res.status(200).json({ username });
