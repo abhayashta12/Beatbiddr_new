@@ -55,8 +55,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (user.role !== 'dj') {
         throw Object.assign(new Error('Only DJ accounts receive payouts.'), { status: 403 });
       }
+      if (user.djProfileComplete !== true) {
+        throw Object.assign(new Error('Finish setting up your DJ profile first.'), { status: 409 });
+      }
       if (typeof user.stripeAccountId !== 'string' || !user.stripeAccountId) {
         throw Object.assign(new Error('Set up payouts first.'), { status: 409 });
+      }
+      // The account id must be one WE created for THIS uid. Checked against
+      // Stripe below as well, but refuse an obviously forged shape early.
+      if (!user.stripeAccountId.startsWith('acct_')) {
+        throw Object.assign(new Error('Payout account is not valid.'), { status: 409 });
       }
       if (user.payoutsEnabled !== true) {
         throw Object.assign(
@@ -92,7 +100,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     reserved = reservation.amount;
     accountId = reservation.accountId;
 
-    // ---- 2. move the money ----
+    // ---- 2. verify the destination with Stripe, not with our own document ----
+    //
+    // Defence in depth. Firestore rules keep the browser out of these fields,
+    // but this endpoint moves real money and must not be the only thing
+    // standing between a forged document and a transfer. Stripe is the
+    // authority on whether an account exists, belongs to this uid, and is
+    // cleared to receive funds.
+    const account = await stripe.accounts.retrieve(accountId);
+
+    if (account.metadata?.uid !== uid || account.metadata?.app !== 'beatbiddr') {
+      // The account exists but we did not create it for this user.
+      console.error(
+        `PAYOUT BLOCKED: ${uid} tried to pay out to ${accountId}, owned by ${account.metadata?.uid ?? 'unknown'}`
+      );
+      throw Object.assign(new Error('Payout account is not valid.'), { status: 403 });
+    }
+    if (account.payouts_enabled !== true || account.charges_enabled !== true) {
+      throw Object.assign(
+        new Error('Stripe has not finished verifying your details yet.'),
+        { status: 409 }
+      );
+    }
+
+    // ---- 3. move the money ----
     const transfer = await stripe.transfers.create(
       {
         amount: Math.round(reserved * 100),

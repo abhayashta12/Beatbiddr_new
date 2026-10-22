@@ -9,12 +9,31 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
 
-      // New account: balance must start at 0, onboarding incomplete, no ledger tampering.
+      // New account.
+      //
+      // This is an ALLOWLIST, deliberately. It used to forbid three named
+      // fields and permit everything else, which failed open: every field
+      // added later — djEarningsAvailable, payoutsEnabled, stripeAccountId —
+      // was silently creatable by the browser. Combined with /api/request-payout
+      // trusting those fields, a user could delete their account, recreate it
+      // with an invented earnings balance and their own Stripe account id, and
+      // withdraw real money.
+      //
+      // hasOnly() bounds the document to exactly the fields the signup flow
+      // writes, so a field added in future is denied until someone adds it
+      // here on purpose.
       allow create: if isSignedIn()
         && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+             'name', 'email', 'avatar', 'role',
+             'djProfileComplete', 'walletBalance', 'createdAt'
+           ])
         && request.resource.data.walletBalance == 0
         && request.resource.data.djProfileComplete == false
-        && !('transactions' in request.resource.data);
+        && (
+          request.resource.data.role == null
+          || request.resource.data.role in ['customer', 'dj']
+        );
 
       // Profile edits only. Every money and identity field is server-only —
       // the Admin SDK bypasses rules, so the API can write them and the

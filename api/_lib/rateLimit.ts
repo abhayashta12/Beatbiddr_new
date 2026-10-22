@@ -1,5 +1,9 @@
 import { adminDb } from './firebaseAdmin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { decideRateLimit } from './rateLimitWindow';
+
+export type { RateLimitDecision } from './rateLimitWindow';
+export { decideRateLimit } from './rateLimitWindow';
 
 /**
  * Per-user rate limiting.
@@ -29,37 +33,6 @@ export interface RateLimitOptions {
   /** Calls permitted inside one window. */
   limit: number;
   windowSeconds: number;
-}
-
-export type RateLimitDecision =
-  | { kind: 'start-window' }
-  | { kind: 'increment' }
-  | { kind: 'refuse'; retryAfter: number };
-
-/**
- * The window arithmetic, separated from Firestore so it can be tested.
- *
- * `windowStartMs` is null when no counter exists yet.
- */
-export function decideRateLimit(
-  windowStartMs: number | null,
-  count: number,
-  nowMs: number,
-  limit: number,
-  windowSeconds: number
-): RateLimitDecision {
-  if (windowStartMs === null) return { kind: 'start-window' };
-
-  const elapsed = nowMs - windowStartMs;
-  if (elapsed >= windowSeconds * 1000) return { kind: 'start-window' };
-
-  if (count >= limit) {
-    // Never report 0 — a Retry-After of 0 invites an immediate retry.
-    const retryAfter = Math.max(1, Math.ceil((windowSeconds * 1000 - elapsed) / 1000));
-    return { kind: 'refuse', retryAfter };
-  }
-
-  return { kind: 'increment' };
 }
 
 export async function checkRateLimit(

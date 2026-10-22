@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decideRateLimit } from './rateLimit';
+import { decideRateLimit } from './rateLimitWindow';
 
 const NOW = 1_000_000;
 const LIMIT = 20;
