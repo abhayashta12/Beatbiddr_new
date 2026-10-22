@@ -75,7 +75,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userRef = db.collection('users').doc(uid);
   const djRef = db.collection('djs').doc(djId);
   const requestRef = db.collection('songRequests').doc();
-  const ledgerRef = userRef.collection('ledger').doc();
   // Identity-free mirror so a fan can work out their queue position without
   // being able to read other people's names or messages.
   const queueRef = db.collection('queueEntries').doc(requestRef.id);
@@ -101,7 +100,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw Object.assign(new Error('Insufficient wallet balance.'), { status: 402 });
       }
 
-      tx.update(userRef, { walletBalance: FieldValue.increment(-tip) });
+      // Held, not spent. It leaves the spendable balance so the same money
+      // cannot back two requests, but the fan has not paid anyone yet — that
+      // only happens if the DJ accepts. No ledger entry: the ledger records
+      // money that actually moved.
+      tx.update(userRef, {
+        walletBalance: FieldValue.increment(-tip),
+        walletHeld: FieldValue.increment(tip),
+      });
       tx.set(queueRef, {
         djId,
         status: 'pending',
@@ -127,13 +133,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tipAmount: tip,
         message: message ?? '',
         status: 'pending',
-        timestamp,
-      });
-      tx.set(ledgerRef, {
-        type: 'tip',
-        amount: tip,
-        song: { title: song.title, artist: song.artist },
-        requestId: requestRef.id,
         timestamp,
       });
     });

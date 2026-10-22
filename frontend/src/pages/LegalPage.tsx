@@ -28,7 +28,8 @@ const DOCS: Record<string, Doc> = {
         heading: 'What BeatBiddr does',
         body: [
           'BeatBiddr lets you request songs from DJs playing live at a venue and add a tip to your request. A tip increases the chance and the speed of your song being played.',
-          'A tip is a request, not a purchase. DJs choose what to play. Accepting a request is always their decision.',
+          'A tip is a request, not a purchase. DJs choose what to play, and accepting or declining is always their decision. Your tip is held when you send a request and charged only if the DJ accepts; if they decline, you pay nothing.',
+          'Once a DJ accepts, the tip is theirs. BeatBiddr does not control what a DJ plays and is not responsible for whether an accepted song is played.',
         ],
       },
       {
@@ -129,17 +130,25 @@ const DOCS: Record<string, Doc> = {
     intro: 'When money comes back, and when it does not.',
     sections: [
       {
-        heading: 'Rejected requests',
+        heading: 'When you are charged',
         body: [
-          'If a DJ rejects your request, the tip is returned to your BeatBiddr balance automatically. The refund happens at the same moment the request is rejected, and it appears in your wallet activity as a refund.',
-          'If a rejected request has somehow not been credited back, contact us and we will put it right.',
+          'Sending a request places your tip on hold. It leaves your spendable balance so the same money cannot back two requests, but it has not been paid to anyone yet.',
+          'You are charged only if the DJ accepts. If the DJ declines, the hold is released back to your balance immediately and you have paid nothing.',
+        ],
+      },
+      {
+        heading: 'Declined requests',
+        body: [
+          'A declined request costs you nothing. The hold is released the moment the DJ declines.',
+          'If a declined request has somehow not been released back to your balance, contact us and we will put it right.',
         ],
       },
       {
         heading: 'Songs that are not played',
         body: [
-          'Accepting a request is not a guarantee it will be played — a set can end or the night can change. If an accepted request is not played, contact us.',
-          'A tip on a song that was played is not refundable.',
+          'Accepting a request means the DJ has taken your tip. It is not a guarantee that the song will be played, and it is not refundable once accepted.',
+          'What a DJ plays, and in what order, is entirely their decision. A set can end, the room can change, or they may judge a track wrong for the moment. BeatBiddr does not control a DJ’s set and is not responsible for whether an accepted song is played.',
+          'If you believe a DJ is accepting tips in bad faith, contact us — we can remove accounts that misuse the service.',
         ],
       },
       {

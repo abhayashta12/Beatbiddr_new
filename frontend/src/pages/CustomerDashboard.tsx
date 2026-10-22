@@ -10,10 +10,10 @@ import { db, auth } from '../lib/firebase';
 import { getSelectedDJ, clearSelectedDJ } from '../utils/selectedDJ';
 
 const statusCopy: Record<SongRequest['status'], string> = {
-  pending: 'Waiting on the DJ',
-  accepted: 'In the queue',
+  pending: 'Waiting on the DJ · tip on hold',
+  accepted: 'In the queue · tip paid',
   played: 'Played',
-  rejected: 'Not played · refunded',
+  rejected: 'Declined · tip returned',
 };
 
 interface DJPublic {

@@ -5,6 +5,15 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { planStatusChange } from './_lib/requestStatus';
 
 /**
+ * BeatBiddr's cut of a tip, as a percentage. Unset means 0 — the DJ keeps
+ * everything — so turning on a fee is a config change, not a deploy.
+ */
+function platformFeePercent(): number {
+  const raw = Number(process.env.PLATFORM_FEE_PERCENT ?? 0);
+  return Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : 0;
+}
+
+/**
  * A DJ accepting, rejecting or playing a request.
  *
  * This used to be a plain updateDoc from the DJ's browser, which meant two
@@ -56,45 +65,90 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const request = snap.data()!;
-      const plan = planStatusChange(request, uid, status);
+      const plan = planStatusChange(request, uid, status, platformFeePercent());
 
       if (plan.error) {
         throw Object.assign(new Error(plan.error.message), { status: plan.error.status });
       }
       if (plan.idempotent) {
-        return { status, refunded: 0 };
+        return { status, released: 0, captured: 0, earned: 0 };
       }
 
       // Every read must happen before the first write — Firestore rejects a
-      // transaction that reads after writing. So resolve the refund target
-      // before touching anything.
-      const requesterRef = plan.refund
-        ? db.collection('users').doc(plan.refund.requesterId)
-        : null;
+      // transaction that reads after writing. So resolve the fan now.
+      const settle = plan.capture ?? plan.release;
+      const requesterRef = settle ? db.collection('users').doc(settle.requesterId) : null;
       const requesterSnap = requesterRef ? await tx.get(requesterRef) : null;
+      const requesterExists = Boolean(requesterSnap?.exists);
+
+      // Never move more than is actually held. A request created before holds
+      // existed has no hold behind it, and blindly decrementing would push
+      // walletHeld negative — which would then let the fan's next release
+      // mint money that was never there.
+      const heldNow = (() => {
+        const v = requesterSnap?.data()?.walletHeld;
+        return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+      })();
+      const settleAmount = settle ? Math.min(settle.amount, heldNow) : 0;
 
       // ---- writes from here on ----
       tx.update(requestRef, { status });
       tx.set(queueRef, { status }, { merge: true });
 
-      if (!plan.refund || !requesterRef || !requesterSnap?.exists) {
-        // Not a rejection, nothing to give back, or the account is gone.
-        // Still a valid status change.
-        return { status, refunded: 0 };
+      const song = { title: request.song?.title ?? '', artist: request.song?.artist ?? '' };
+
+      // Rejected: the hold goes straight back to spendable. The fan never
+      // paid, so there is nothing to record in the ledger.
+      if (plan.release && requesterRef && requesterExists) {
+        if (settleAmount > 0) {
+          tx.update(requesterRef, {
+            walletHeld: FieldValue.increment(-settleAmount),
+            walletBalance: FieldValue.increment(settleAmount),
+          });
+        }
+        return { status, released: settleAmount, captured: 0, earned: 0 };
       }
 
-      tx.update(requesterRef, { walletBalance: FieldValue.increment(plan.refund.amount) });
-      // Ledger id is derived from the request, so a retry writes the same
-      // document rather than crediting twice.
-      tx.set(requesterRef.collection('ledger').doc(`refund_${requestId}`), {
-        type: 'refund',
-        amount: plan.refund.amount,
-        song: { title: request.song?.title ?? '', artist: request.song?.artist ?? '' },
-        requestId,
-        timestamp: new Date().toISOString(),
-      });
+      // Accepted: the hold is now spent. This is the moment the fan actually
+      // pays and the DJ actually earns.
+      if (plan.capture && requesterRef && requesterExists) {
+        if (settleAmount > 0) {
+          tx.update(requesterRef, { walletHeld: FieldValue.increment(-settleAmount) });
+        }
+        // Ledger id derives from the request, so a retry rewrites the same
+        // document instead of recording a second charge.
+        tx.set(requesterRef.collection('ledger').doc(`tip_${requestId}`), {
+          type: 'tip',
+          amount: plan.capture.amount,
+          song,
+          requestId,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
-      return { status, refunded: plan.refund.amount };
+      if (plan.earning) {
+        const djRef = db.collection('users').doc(plan.earning.djId);
+        tx.update(djRef, {
+          djEarningsAvailable: FieldValue.increment(plan.earning.net),
+          djEarningsLifetime: FieldValue.increment(plan.earning.net),
+        });
+        tx.set(djRef.collection('earnings').doc(`tip_${requestId}`), {
+          type: 'tip',
+          gross: plan.earning.gross,
+          fee: plan.earning.fee,
+          net: plan.earning.net,
+          requestId,
+          song,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return {
+        status,
+        released: 0,
+        captured: plan.capture?.amount ?? 0,
+        earned: plan.earning?.net ?? 0,
+      };
     });
 
     return res.status(200).json(result);

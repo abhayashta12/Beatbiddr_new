@@ -90,5 +90,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // A DJ finished (or changed) Stripe Connect onboarding. payouts_enabled is
+  // Stripe's own verdict on whether they can receive money — we never infer
+  // it from the DJ returning to the app, because onboarding can be abandoned
+  // halfway and still bounce back to our return_url.
+  if (event.type === 'account.updated') {
+    const account = event.data.object as Stripe.Account;
+    const uid = account.metadata?.uid;
+
+    if (!uid || account.metadata?.app !== 'beatbiddr') {
+      return res.status(200).json({ received: true });
+    }
+
+    try {
+      await adminDb()
+        .collection('users')
+        .doc(uid)
+        .update({
+          payoutsEnabled: account.payouts_enabled === true && account.charges_enabled === true,
+          payoutsDetailsSubmitted: account.details_submitted === true,
+        });
+    } catch (err: any) {
+      console.error(`Failed to sync Connect status for ${uid}:`, err.message);
+      return res.status(500).json({ error: 'Failed to sync account status.' });
+    }
+  }
+
   return res.status(200).json({ received: true });
 }

@@ -8,10 +8,10 @@ import { collection, onSnapshot, query, where, orderBy, limit, doc } from 'fireb
 import { db } from '../lib/firebase';
 
 const statusCopy: Record<SongRequest['status'], string> = {
-  pending: 'Waiting',
+  pending: 'On hold',
   accepted: 'In queue',
   played: 'Played',
-  rejected: 'Refunded',
+  rejected: 'Returned',
 };
 
 const ProfilePage: React.FC = () => {
@@ -72,8 +72,10 @@ const ProfilePage: React.FC = () => {
 
   const isDJ = role === 'dj';
   const played = requests.filter((r) => r.status === 'played');
+  // Only money that actually changed hands. A pending request is held, not
+  // spent, and a declined one was returned.
   const totalTipped = requests
-    .filter((r) => r.status !== 'rejected')
+    .filter((r) => r.status === 'accepted' || r.status === 'played')
     .reduce((sum, r) => sum + r.tipAmount, 0);
 
   const handleLogout = async () => {

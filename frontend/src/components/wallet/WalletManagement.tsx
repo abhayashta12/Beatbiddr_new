@@ -11,6 +11,8 @@ import { auth } from '../../lib/firebase';
 
 interface WalletManagementProps {
   balance: number;
+  /** Tied up in requests a DJ has not answered yet. */
+  held: number;
   transactions: Transaction[];
 }
 
@@ -22,7 +24,7 @@ const MIN_TOPUP = 1;
 const MAX_TOPUP = 1000;
 const PRESETS = [20, 50, 100, 200];
 
-const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactions }) => {
+const WalletManagement: React.FC<WalletManagementProps> = ({ balance, held, transactions }) => {
   // Held as text so a half-typed value like "2." survives keystrokes
   const [amountText, setAmountText] = useState('20');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -269,6 +271,12 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, transactio
         <p className="text-[46px] font-extrabold tracking-[-0.045em] leading-none mt-2 tnum text-brand-500">
           ${balance.toFixed(2)}
         </p>
+        {held > 0 && (
+          <p className="text-[12.5px] muted mt-2 leading-relaxed">
+            ${held.toFixed(2)} on hold for requests a DJ hasn’t answered yet. You’ll get it back
+            if they decline.
+          </p>
+        )}
       </header>
 
       {showSuccess && (

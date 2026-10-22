@@ -9,13 +9,18 @@ import { db } from '../lib/firebase';
 const WalletPage: React.FC = () => {
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
+  const [held, setHeld] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Balance — written only by the server (Stripe webhook / request endpoint)
+  // Balance — written only by the server (Stripe webhook / request endpoints)
   useEffect(() => {
     if (!user) return;
     return onSnapshot(doc(db, 'users', user.uid), (snap) => {
-      if (snap.exists()) setBalance(snap.data().walletBalance ?? 0);
+      if (!snap.exists()) return;
+      setBalance(snap.data().walletBalance ?? 0);
+      // Held by requests a DJ has not answered yet. Shown separately, or the
+      // fan sees their balance drop with nothing in the ledger to explain it.
+      setHeld(snap.data().walletHeld ?? 0);
     });
   }, [user]);
 
@@ -34,7 +39,7 @@ const WalletPage: React.FC = () => {
 
   return (
     <AppShell>
-      <WalletManagement balance={balance} transactions={transactions} />
+      <WalletManagement balance={balance} held={held} transactions={transactions} />
     </AppShell>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Check, X, Play } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import type { SongRequest } from '../types';
-import { collection, onSnapshot, query, orderBy, where, limit } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, where, limit } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -21,6 +21,17 @@ const DJDashboardPage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('incoming');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The authoritative figure, written by the server when a request is
+  // accepted. Summing the visible requests would silently undercount once a
+  // DJ passes the 200-request page size.
+  const [earnings, setEarnings] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    return onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      if (snap.exists()) setEarnings(snap.data().djEarningsLifetime ?? 0);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -54,10 +65,6 @@ const DJDashboardPage: React.FC = () => {
 
   const pending = requests.filter((r) => r.status === 'pending');
   const accepted = requests.filter((r) => r.status === 'accepted');
-  // Accepted and played both count — the tip was already taken from the fan.
-  const earnings = requests
-    .filter((r) => r.status === 'accepted' || r.status === 'played')
-    .reduce((sum, r) => sum + r.tipAmount, 0);
 
   /**
    * Goes through the server, not straight to Firestore. The endpoint checks

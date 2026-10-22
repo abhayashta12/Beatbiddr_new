@@ -29,6 +29,11 @@ const SettingsPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [available, setAvailable] = useState(0);
+  const [payoutsEnabled, setPayoutsEnabled] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  const [payoutBusy, setPayoutBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -38,6 +43,11 @@ const SettingsPage: React.FC = () => {
       setBalance(data.walletBalance ?? 0);
       setName(data.name ?? '');
       setDjProfile((data.djProfile as DJProfile) ?? {});
+      setAvailable(data.djEarningsAvailable ?? 0);
+      // Stripe's verdict, synced by the account.updated webhook — not
+      // something we infer from the DJ returning to the app.
+      setPayoutsEnabled(data.payoutsEnabled === true);
+      setStripeAccountId(typeof data.stripeAccountId === 'string' ? data.stripeAccountId : null);
     });
   }, [user]);
 
@@ -87,6 +97,52 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  /** Shared plumbing for the two payout calls. */
+  const callPayoutApi = async (path: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Please sign in again.');
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: '{}',
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error ?? 'Something went wrong.');
+    return body;
+  };
+
+  const setUpPayouts = async () => {
+    if (payoutBusy) return;
+    setPayoutBusy(true);
+    setError(null);
+    try {
+      const { url } = await callPayoutApi('/api/connect-onboard');
+      if (!url) throw new Error('Could not open payout setup.');
+      // Stripe-hosted onboarding. Replacing the location rather than opening a
+      // tab keeps the flow in one place on a phone.
+      window.location.href = url;
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not open payout setup.');
+      setPayoutBusy(false);
+    }
+  };
+
+  const cashOut = async () => {
+    if (payoutBusy) return;
+    setPayoutBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { amount } = await callPayoutApi('/api/request-payout');
+      // The snapshot listener brings the new balance back on its own.
+      setNotice(`$${Number(amount).toFixed(2)} is on its way to your bank.`);
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not send your payout.');
+    } finally {
+      setPayoutBusy(false);
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/');
@@ -108,6 +164,7 @@ const SettingsPage: React.FC = () => {
           </div>
 
           {error && <p className="text-[13px] text-red-400 mb-4">{error}</p>}
+          {notice && <p className="text-[13px] text-brand-500 mb-4">{notice}</p>}
 
           {/* ---------- profile ---------- */}
           <p className="label mb-2">Profile</p>
@@ -225,13 +282,46 @@ const SettingsPage: React.FC = () => {
             {isDJ ? (
               <>
                 <Row k="Earnings" v="View" onClick={() => navigate('/dj')} />
-                {/* Honest about the one thing a DJ most wants to know. */}
+                <Row k="Available to cash out" v={`$${available.toFixed(2)}`} accent={available > 0} />
                 <div className="px-4 py-3.5">
                   <p className="text-[14px] font-semibold">Payouts</p>
-                  <p className="text-[11.5px] muted mt-1 leading-relaxed">
-                    Tips are being tracked against your account. Automatic payouts aren’t live
-                    yet — contact us to be paid out.
-                  </p>
+                  {payoutsEnabled ? (
+                    <>
+                      <p className="text-[11.5px] muted mt-1 leading-relaxed">
+                        Paid to your bank through Stripe. $10 minimum.
+                      </p>
+                      <button
+                        onClick={cashOut}
+                        disabled={payoutBusy || available < 10}
+                        className="btn-primary w-full mt-3 py-2.5 text-[14px] disabled:opacity-40"
+                      >
+                        {payoutBusy
+                          ? 'Sending…'
+                          : available < 10
+                          ? 'Minimum $10 to cash out'
+                          : `Cash out $${available.toFixed(2)}`}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11.5px] muted mt-1 leading-relaxed">
+                        {stripeAccountId
+                          ? 'Stripe is still verifying your details. This can take a few minutes.'
+                          : 'Connect a bank account through Stripe to get paid.'}
+                      </p>
+                      <button
+                        onClick={setUpPayouts}
+                        disabled={payoutBusy}
+                        className="btn-ghost w-full mt-3 py-2.5 text-[14px] disabled:opacity-40"
+                      >
+                        {payoutBusy
+                          ? 'Opening…'
+                          : stripeAccountId
+                          ? 'Continue setup'
+                          : 'Set up payouts'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             ) : (

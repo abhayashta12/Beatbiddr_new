@@ -16,17 +16,29 @@ service cloud.firestore {
         && request.resource.data.djProfileComplete == false
         && !('transactions' in request.resource.data);
 
-      // Profile edits only. Money and DJ-identity fields are server-only
-      // (Admin SDK bypasses rules):
-      // - walletBalance / transactions: written by the Stripe webhook and
-      //   /api/submit-request
+      // Profile edits only. Every money and identity field is server-only —
+      // the Admin SDK bypasses rules, so the API can write them and the
+      // browser cannot:
+      // - walletBalance / walletHeld: the fan's spendable and held funds,
+      //   moved by the Stripe webhook, /api/submit-request and
+      //   /api/update-request-status
+      // - djEarningsAvailable / djEarningsLifetime: what a DJ is owed. Writable
+      //   from a browser, a DJ could set their own balance and cash it out.
+      // - stripeAccountId / payoutsEnabled: which Stripe account gets paid,
+      //   and whether Stripe has verified it. Writable, a DJ could point
+      //   payouts at any account or skip verification entirely.
       // - djProfile / djProfileComplete: written by /api/complete-dj-profile,
       //   which validates the identity data and claims the username atomically
       // - role: write-once (only settable while null)
       allow update: if isSignedIn()
         && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny(['walletBalance', 'transactions', 'djProfile', 'djProfileComplete'])
+             .hasAny([
+               'walletBalance', 'walletHeld', 'transactions',
+               'djEarningsAvailable', 'djEarningsLifetime',
+               'stripeAccountId', 'payoutsEnabled',
+               'djProfile', 'djProfileComplete'
+             ])
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
           || resource.data.role == null
@@ -36,6 +48,19 @@ service cloud.firestore {
 
       // Immutable server-written money ledger. Clients read their own, write nothing.
       match /ledger/{entryId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      // A DJ's earned tips, one entry per accepted request. Server-written.
+      match /earnings/{entryId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      // Payout attempts and their outcome. Server-written; a DJ can see their
+      // own history but cannot create or alter one.
+      match /payouts/{payoutId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow write: if false;
       }
