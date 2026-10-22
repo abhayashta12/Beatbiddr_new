@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminAuth, adminDb } from './_lib/firebaseAdmin';
+import { releasePendingHolds } from './_lib/settleHolds';
 
 /**
  * Permanently deletes the caller's account.
@@ -39,6 +40,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const user = snap.data()!;
+    const isDJ = user.role === 'dj';
+
+    // 0 — close out every open hold BEFORE anything is anonymised or deleted.
+    //
+    // This has to come first. Once requester.id is rewritten to 'deleted' the
+    // settlement logic can no longer find the fan to pay back, and once the
+    // account is gone nobody can ever accept or reject their requests.
+    if (isDJ) {
+      // A DJ walking away owes money back to every fan waiting on them.
+      // Nobody else is authorised to settle these, so if we skip it those
+      // fans lose the money permanently.
+      const { released, refundedTotal } = await releasePendingHolds('djId', uid, true);
+      if (released > 0) {
+        console.log(
+          `delete-account: released ${released} pending requests for DJ ${uid}, ` +
+            `$${refundedTotal.toFixed(2)} returned to fans.`
+        );
+      }
+    } else {
+      // A fan leaving: resolve their pending requests so no DJ is left
+      // holding a request that can never settle. Not credited — the balance
+      // is about to be deleted, and the Terms say an unspent balance is
+      // forfeited on deletion.
+      const { released } = await releasePendingHolds('requester.id', uid, false);
+      if (released > 0) {
+        console.log(`delete-account: closed ${released} pending requests for fan ${uid}.`);
+      }
+    }
 
     // 1 — strip personal details from past requests, in pages of 400 so a
     //     heavy user cannot exceed Firestore's 500-write batch limit.

@@ -35,32 +35,27 @@ service cloud.firestore {
           || request.resource.data.role in ['customer', 'dj']
         );
 
-      // Profile edits only. Every money and identity field is server-only —
-      // the Admin SDK bypasses rules, so the API can write them and the
-      // browser cannot:
-      // - walletBalance / walletHeld: the fan's spendable and held funds,
-      //   moved by the Stripe webhook, /api/submit-request and
-      //   /api/update-request-status
-      // - djEarningsAvailable / djEarningsLifetime: what a DJ is owed. Writable
-      //   from a browser, a DJ could set their own balance and cash it out.
-      // - stripeAccountId / payoutsEnabled: which Stripe account gets paid,
-      //   and whether Stripe has verified it. Writable, a DJ could point
-      //   payouts at any account or skip verification entirely.
-      // - djProfile / djProfileComplete: written by /api/complete-dj-profile,
-      //   which validates the identity data and claims the username atomically
-      // - role: write-once (only settable while null)
+      // An ALLOWLIST, for the same reason create is one. This was a denylist
+      // naming the money fields, which meant every field added afterwards —
+      // disputeCount, flaggedForFraud, anything future — became silently
+      // client-writable until someone remembered to forbid it.
+      //
+      // The browser legitimately writes exactly two things:
+      //   name — the display name, edited in Settings
+      //   role — chosen once at signup, never changed again
+      //
+      // Everything else is server-only. The Admin SDK bypasses rules, so the
+      // API can still write balances, earnings, Stripe ids, dispute flags and
+      // the DJ profile; the browser cannot touch any of them.
       allow update: if isSignedIn()
         && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys()
-             .hasAny([
-               'walletBalance', 'walletHeld', 'transactions',
-               'djEarningsAvailable', 'djEarningsLifetime',
-               'stripeAccountId', 'payoutsEnabled',
-               'djProfile', 'djProfileComplete'
-             ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role'])
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
-          || resource.data.role == null
+          || (
+            resource.data.role == null
+            && request.resource.data.role in ['customer', 'dj']
+          )
         );
 
       allow delete: if false;

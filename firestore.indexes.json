@@ -4,34 +4,106 @@
       "collectionGroup": "songRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "requester.id", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
+        {
+          "fieldPath": "requester.id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "songRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "djId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "tipAmount", "order": "DESCENDING" }
+        {
+          "fieldPath": "djId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipAmount",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "songRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "djId", "order": "ASCENDING" },
-        { "fieldPath": "tipAmount", "order": "DESCENDING" }
+        {
+          "fieldPath": "djId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipAmount",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "queueEntries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "djId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "tipAmount", "order": "DESCENDING" }
+        {
+          "fieldPath": "djId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipAmount",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "djId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "songRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "requester.id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

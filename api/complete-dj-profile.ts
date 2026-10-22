@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
 import { buildDJPublic } from './_lib/djPublic';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -14,6 +15,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const uid = await verifyCaller(req);
   if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Usernames are permanent and first-come, so without a limit someone
+  // could squat every desirable name at machine speed.
+  const limited = await checkRateLimit(uid, {
+    action: 'complete-dj-profile',
+    limit: 5,
+    windowSeconds: 3600,
+  });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfter));
+    return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes.' });
+  }
 
   const body = req.body as Record<string, unknown>;
   const username = str(body.username).toLowerCase();

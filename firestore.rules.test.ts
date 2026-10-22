@@ -255,8 +255,40 @@ describe('users: update', () => {
     ['payoutsEnabled', { payoutsEnabled: true }],
     ['djProfile', { djProfile: { verified: true } }],
     ['djProfileComplete', { djProfileComplete: true }],
+    // Added by the chargeback handling. A denylist would have left these open.
+    ['disputeCount', { disputeCount: 0 }],
+    ['flaggedForReview', { flaggedForReview: false }],
+    ['email', { email: 'someone@else.com' }],
+    ['createdAt', { createdAt: '1999-01-01T00:00:00.000Z' }],
   ])('denies writing %s from the client', async (_label, patch) => {
     await assertFails(updateDoc(doc(as(FAN), 'users', FAN), patch as any));
+  });
+
+  it('denies clearing a fraud flag to rehabilitate yourself', async () => {
+    await seed(async (db) => {
+      await setDoc(
+        doc(db, 'users', FAN),
+        { flaggedForReview: true, disputeCount: 3 },
+        { merge: true }
+      );
+    });
+    await assertFails(updateDoc(doc(as(FAN), 'users', FAN), { flaggedForReview: false }));
+    await assertFails(updateDoc(doc(as(FAN), 'users', FAN), { disputeCount: 0 }));
+  });
+
+  it('denies a legitimate field smuggled alongside a name change', async () => {
+    // hasOnly must reject the whole write, not just the offending key.
+    await assertFails(
+      updateDoc(doc(as(FAN), 'users', FAN), { name: 'Alicia', walletBalance: 99999 })
+    );
+  });
+
+  it('denies an unknown field nobody has thought of yet', async () => {
+    await assertFails(updateDoc(doc(as(FAN), 'users', FAN), { isAdmin: true } as any));
+  });
+
+  it('denies setting an invented role on a roleless account', async () => {
+    await assertFails(updateDoc(doc(as(FAN2), 'users', FAN2), { role: 'admin' }));
   });
 
   it('denies a DJ raising their own earnings', async () => {

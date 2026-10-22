@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
 import { PUBLIC_DJ_FIELDS, buildDJPublic } from './_lib/djPublic';
 
 const PHONE_RE = /^\+?[\d\s\-()]{7,15}$/;
@@ -20,6 +21,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const uid = await verifyCaller(req);
   if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Cheap to call and it writes two documents; no reason to allow a flood.
+  const limited = await checkRateLimit(uid, {
+    action: 'update-dj-profile',
+    limit: 30,
+    windowSeconds: 300,
+  });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfter));
+    return res.status(429).json({ error: 'Too many attempts. Please wait a few minutes.' });
+  }
 
   const body = req.body as Record<string, unknown>;
   const stageName = str(body.stageName);

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyCaller, adminDb } from './_lib/firebaseAdmin';
 import { checkRateLimit } from './_lib/rateLimit';
+import { isSpotifyImageUrl } from './_lib/validators';
 import { FieldValue } from 'firebase-admin/firestore';
 
 interface SongPayload {
@@ -62,6 +63,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (song.album !== undefined && (typeof song.album !== 'string' || song.album.length > 300))
   ) {
     return res.status(400).json({ error: 'Song details are too long.' });
+  }
+  // The cover URL is rendered in an <img> on the DJ's dashboard. Unvalidated,
+  // a crafted request could point it at any host and quietly collect the DJ's
+  // IP address and user-agent — and act as a read receipt for exactly when
+  // they looked at their queue. Only Spotify's own CDN is allowed.
+  if (song.albumCover && !isSpotifyImageUrl(song.albumCover)) {
+    return res.status(400).json({ error: 'Invalid album artwork.' });
   }
   if (typeof tipAmount !== 'number' || !Number.isFinite(tipAmount) || tipAmount < 1 || tipAmount > 1000) {
     return res.status(400).json({ error: 'Tip must be between $1 and $1000.' });
