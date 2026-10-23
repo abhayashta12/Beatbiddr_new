@@ -35,6 +35,8 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, held, tran
   const [stripe, setStripe] = useState<Stripe | null>(null);
   const [cardError, setCardError] = useState<string | null>(null);
   const [cardComplete, setCardComplete] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const [releaseNote, setReleaseNote] = useState<string | null>(null);
   const prButtonRef = useRef<HTMLDivElement>(null);
   const cardMountRef = useRef<HTMLDivElement>(null);
   const cardElementRef = useRef<StripeCardElement | null>(null);
@@ -205,6 +207,40 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, held, tran
     };
   }, [stripe]);
 
+  /**
+   * Releases this user's own holds from requests a DJ never answered. The
+   * scheduled sweep only runs once a day, so this is the way to get that
+   * money back now. Recent requests are untouched — the server only releases
+   * holds older than its staleness window.
+   */
+  const releaseHeld = async () => {
+    if (releasing) return;
+    setReleasing(true);
+    setReleaseNote(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Please sign in again.');
+
+      const res = await fetch('/api/release-stale-holds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: '{}',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? 'Could not release your held funds.');
+
+      setReleaseNote(
+        body.released > 0
+          ? `Released $${Number(body.refundedTotal).toFixed(2)} back to your balance.`
+          : 'Nothing to release yet — these requests are still recent enough for the DJ to answer.'
+      );
+    } catch (err: any) {
+      setReleaseNote(err?.message ?? 'Could not release your held funds.');
+    } finally {
+      setReleasing(false);
+    }
+  };
+
   const handleCardPay = async () => {
     const card = cardElementRef.current;
     if (!stripe || !card || !valid || isProcessing) return;
@@ -272,10 +308,22 @@ const WalletManagement: React.FC<WalletManagementProps> = ({ balance, held, tran
           ${balance.toFixed(2)}
         </p>
         {held > 0 && (
-          <p className="text-[12.5px] muted mt-2 leading-relaxed">
-            ${held.toFixed(2)} on hold for requests a DJ hasn’t answered yet. You’ll get it back
-            if they decline.
-          </p>
+          <div className="mt-2">
+            <p className="text-[12.5px] muted leading-relaxed">
+              ${held.toFixed(2)} on hold for requests a DJ hasn’t answered yet. You’ll get it
+              back if they decline.
+            </p>
+            {/* Holds from an old night are swept daily, but nobody should have
+                to wait a day for money nobody ever took. */}
+            <button
+              onClick={releaseHeld}
+              disabled={releasing}
+              className="text-[12.5px] font-semibold text-brand-500 underline underline-offset-2 mt-1.5 disabled:opacity-50"
+            >
+              {releasing ? 'Checking…' : 'Release funds from an earlier night'}
+            </button>
+            {releaseNote && <p className="text-[12.5px] muted mt-1.5">{releaseNote}</p>}
+          </div>
         )}
       </header>
 

@@ -40,7 +40,13 @@ export interface ReleaseResult {
 export async function releasePendingHolds(
   field: 'djId' | 'requester.id',
   value: string,
-  creditFans: boolean
+  creditFans: boolean,
+  /**
+   * When given, only requests older than this ISO timestamp are released.
+   * Used by the on-demand sweep so a fan can reclaim money from a night a DJ
+   * never answered, without also cancelling a request they sent a minute ago.
+   */
+  olderThanIso?: string
 ): Promise<ReleaseResult> {
   const db = adminDb();
   let released = 0;
@@ -60,6 +66,15 @@ export async function releasePendingHolds(
 
     for (const docSnap of page.docs) {
       const request = docSnap.data();
+
+      // Age is filtered here rather than in the query: one person's pending
+      // requests are few, and adding timestamp to the query would need
+      // another composite index for no real gain.
+      if (olderThanIso) {
+        const ts = typeof request.timestamp === 'string' ? request.timestamp : '';
+        if (!ts || ts >= olderThanIso) continue;
+      }
+
       const tip = typeof request.tipAmount === 'number' ? request.tipAmount : 0;
       const requesterId = request.requester?.id;
 

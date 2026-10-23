@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { adminDb } from './_lib/firebaseAdmin';
+import { adminDb, verifyCaller } from './_lib/firebaseAdmin';
+import { checkRateLimit } from './_lib/rateLimit';
+import { releasePendingHolds } from './_lib/settleHolds';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -15,8 +17,21 @@ import { FieldValue } from 'firebase-admin/firestore';
  * otherwise, so this cannot be triggered from a browser.
  */
 
-/** A night is over well inside this. Generous so a slow DJ is not punished. */
-const STALE_AFTER_HOURS = 12;
+/**
+ * How long a request may sit unanswered before the hold goes back.
+ *
+ * Six hours outlasts any single set while still being comfortably shorter
+ * than the gap between sweeps. The sweep runs once a day (Vercel's Hobby plan
+ * permits only daily crons), at 14:00 UTC — roughly 9am Eastern, 6am Pacific.
+ * Every North American club has closed by then, so one pass catches the whole
+ * previous night.
+ *
+ * The trade-off of a daily sweep: a request sent just after a sweep and never
+ * answered waits until the next one. The fan is not charged in the meantime —
+ * the money is held, not taken — but it is not spendable either. An hourly
+ * sweep would narrow that window and needs a paid Vercel plan.
+ */
+const STALE_AFTER_HOURS = 6;
 const PAGE_SIZE = 100;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,13 +39,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const cutoff = new Date(Date.now() - STALE_AFTER_HOURS * 3600_000).toISOString();
+
+  // Two callers, two scopes.
+  //
+  // The scheduled sweep runs as the platform and releases everybody's stale
+  // holds. A signed-in user may also release their OWN — which matters
+  // because the sweep only runs daily on this plan, and nobody should have to
+  // wait until tomorrow to get back money a DJ never took.
   if (!isAuthorisedCron(req)) {
-    // Deliberately 404, not 403: an unauthenticated caller learns nothing
-    // about whether this endpoint exists.
-    return res.status(404).json({ error: 'Not found' });
+    const uid = await verifyCaller(req);
+    if (!uid) {
+      // Deliberately 404, not 403: an unauthenticated caller learns nothing
+      // about whether this endpoint exists.
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const limited = await checkRateLimit(uid, {
+      action: 'release-own-holds',
+      limit: 10,
+      windowSeconds: 600,
+    });
+    if (!limited.allowed) {
+      res.setHeader('Retry-After', String(limited.retryAfter));
+      return res.status(429).json({ error: 'Try again in a few minutes.' });
+    }
+
+    try {
+      const { released, refundedTotal } = await releasePendingHolds(
+        'requester.id',
+        uid,
+        true,
+        cutoff
+      );
+      return res.status(200).json({ released, refundedTotal, scope: 'self' });
+    } catch (err: any) {
+      console.error('release-stale-holds (self) failed:', err.message);
+      return res.status(500).json({ error: 'Could not release your held funds.' });
+    }
   }
 
-  const cutoff = new Date(Date.now() - STALE_AFTER_HOURS * 3600_000).toISOString();
   const db = adminDb();
 
   let released = 0;
