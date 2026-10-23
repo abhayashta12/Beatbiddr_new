@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "firebase-admin": "^14.5.0",
+    "firebase-admin": "^13.10.0",
     "stripe": "^14.25.0"
   },
   "devDependencies": {
@@ -18,5 +18,8 @@
     "test:watch": "vitest",
     "test:rules": "npx --yes firebase-tools@latest emulators:exec --only firestore --project beatbiddr-rules-test \"npx vitest run firestore.rules.test.ts\"",
     "test:all": "npm test && npm run test:rules"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
