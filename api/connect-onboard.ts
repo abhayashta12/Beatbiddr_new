@@ -82,9 +82,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ url: link.url });
   } catch (err: any) {
-    console.error('connect-onboard failed:', err.message);
+    console.error('connect-onboard failed:', err.type, err.code, err.message);
+
+    // Stripe's own errors here are configuration problems, not user data, and
+    // they are the difference between "it broke" and "Connect is not enabled
+    // on your platform". Surfacing the code is what makes this debuggable
+    // without reading server logs.
+    if (err.type === 'StripeInvalidRequestError' || err.type === 'StripePermissionError') {
+      return res.status(500).json({
+        error: setupHint(err),
+        stripeCode: err.code ?? err.type,
+      });
+    }
     return res.status(500).json({ error: 'Could not start payout setup. Please try again.' });
   }
+}
+
+/**
+ * Turns Stripe's error into something actionable.
+ *
+ * By far the most common cause of a failure here is Connect simply not being
+ * switched on for the platform account, which Stripe reports as a generic
+ * invalid-request rather than anything self-explanatory.
+ */
+function setupHint(err: any): string {
+  const message = String(err.message ?? '');
+
+  if (/Connect/i.test(message) || /only.*platform/i.test(message)) {
+    return 'Stripe Connect is not enabled on this account yet. Enable Connect in the Stripe dashboard, then try again.';
+  }
+  if (err.code === 'account_invalid' || /capabilit/i.test(message)) {
+    return 'Stripe rejected the payout account setup. Check that Connect Express is enabled in the Stripe dashboard.';
+  }
+  if (/api key|No such/i.test(message)) {
+    return 'Payout setup is misconfigured on the server. Check STRIPE_SECRET_KEY.';
+  }
+  return `Stripe could not start payout setup: ${message.slice(0, 200)}`;
 }
 
 /**

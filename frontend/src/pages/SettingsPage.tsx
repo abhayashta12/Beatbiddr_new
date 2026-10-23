@@ -107,7 +107,12 @@ const SettingsPage: React.FC = () => {
       body: '{}',
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error ?? 'Something went wrong.');
+    if (!res.ok) {
+      // Keep Stripe's code visible — without it a payout failure is just
+      // "something went wrong", which tells nobody anything.
+      const detail = body.stripeCode ? ` (${body.stripeCode})` : '';
+      throw new Error(`${body.error ?? 'Something went wrong.'}${detail}`);
+    }
     return body;
   };
 
