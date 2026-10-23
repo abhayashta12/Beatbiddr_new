@@ -20,6 +20,6 @@
     "test:all": "npm test && npm run test:rules"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=18"
   }
 }
